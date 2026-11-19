@@ -1,0 +1,1 @@
+=LET(z,$A{r},codes,FILTER($E$2:$E$2714,((($A$2:$A$2714=z)+(z="Grand Total"))>0)*($E$2:$E$2714<>"")),m,ISNUMBER(MATCH(Index!$N$2:$N$20000,codes,0)),r,IFERROR(ROWS(UNIQUE(FILTER(Index!$O$2:$O$20000,m))),0),IF(r=0,"",r))

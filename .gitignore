@@ -1,0 +1,25 @@
+# company data — never commit or publish
+private-data/
+local/
+backup/
+dist/
+*.xlsb
+*.xlsx
+*.xlsm
+*.csv
+*.json
+!firebase.json
+!package.json
+!package-lock.json
+!firestore.indexes.json
+.firebaserc.local
+TEAM_PASSWORD*
+*.pem
+*service-account*
+src/js/data.js
+# tools / caches
+node_modules/
+.firebase/
+*-debug.log
+__pycache__/
+*.pdf

@@ -1,0 +1,143 @@
+/* ================= Neumorphism layer (presentation only) =================
+   One soft surface colour for page, sidebar, topbar and cards. Depth comes from paired shadows:
+   raised = light from top-left + shade to bottom-right; pressed (inset) = the same, inside.
+   Raised: cards, buttons, chips, menus. Pressed: inputs, search, tracks, the selected nav item and segment group.
+   Status colours (heat cells, pills, priority tags) and the Home banner keep their own colours.
+   Loaded last; remove the <link> to css/neo.css in index.html to switch back. */
+
+:root {
+  --neo: #E7EBF2; --neo-2: #EDF0F6; --neo-hi: rgba(255,255,255,.92); --neo-lo: rgba(163,177,198,.62);
+  --nr: 8px 8px 18px var(--neo-lo), -8px -8px 18px var(--neo-hi);
+  --nr-sm: 4px 4px 10px var(--neo-lo), -4px -4px 10px var(--neo-hi);
+  --nr-xs: 2px 2px 5px var(--neo-lo), -2px -2px 5px var(--neo-hi);
+  --ni: inset 4px 4px 9px var(--neo-lo), inset -4px -4px 9px var(--neo-hi);
+  --ni-sm: inset 2px 2px 5px var(--neo-lo), inset -2px -2px 5px var(--neo-hi);
+  --bg: var(--neo); --surface: var(--neo); --surface-2: var(--neo); --sunken: #DFE4EC;
+  --line: rgba(150,163,186,.24); --line-2: rgba(150,163,186,.38); --hair: transparent;
+  --shadow: var(--nr-sm); --shadow-lg: var(--nr); --glass: var(--neo);
+  --r: 18px; --r-s: 12px;
+}
+:root[data-theme="dark"] {
+  --neo: #262B35; --neo-2: #2A303B; --neo-hi: rgba(255,255,255,.055); --neo-lo: rgba(0,0,0,.5);
+  --bg: var(--neo); --surface: var(--neo); --surface-2: var(--neo); --sunken: #20242D;
+  --line: rgba(255,255,255,.06); --line-2: rgba(255,255,255,.1);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --neo: #262B35; --neo-2: #2A303B; --neo-hi: rgba(255,255,255,.055); --neo-lo: rgba(0,0,0,.5);
+  --bg: var(--neo); --surface: var(--neo); --surface-2: var(--neo); --sunken: #20242D;
+  --line: rgba(255,255,255,.06); --line-2: rgba(255,255,255,.1);
+} }
+
+/* ---------- page ---------- */
+html body { background: var(--neo) !important; }
+html body ::selection { background: rgb(var(--p-rgb) / .22) !important; }
+
+/* ---------- surfaces ---------- */
+html body .card:not(.hm-hero) { background: var(--neo) !important; border-radius: 20px !important; box-shadow: var(--nr) !important; }
+html body .pcard { background: var(--neo) !important; border-top-color: transparent !important; border-right-color: transparent !important; border-bottom-color: transparent !important; box-shadow: var(--nr-sm) !important; border-radius: 14px !important; }
+html body .pcard:hover { background: var(--neo) !important; }
+html body .pcard.on, html body .pcard[aria-selected="true"] { box-shadow: var(--ni-sm) !important; }
+html body .card .card { box-shadow: var(--nr-sm) !important; border-radius: 16px !important; }
+html body .card.click:hover, html body .hm-link:hover, html body .hm-hero-c:hover { transform: translateY(-2px); box-shadow: 10px 10px 22px var(--neo-lo), -10px -10px 22px var(--neo-hi) !important; }
+html body .card.click:active, html body .hm-link:active, html body .hm-hero-c:active { transform: none; box-shadow: var(--ni) !important; }
+html body .card-h { border-bottom-color: var(--line) !important; }
+html body .hm-hero { border-radius: 24px !important; box-shadow: var(--nr) !important; }
+
+/* ---------- topbar ---------- */
+html body .topbar { background: var(--neo) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border-bottom: 0 !important; box-shadow: 0 8px 16px -10px var(--neo-lo) !important; }
+html body .topbar::after, html body .topbar::before { display: none; }
+html body .tb-home, html body .tb-icons > button, html body .tb-up, html body .pal-btn, html body .burger { background: var(--neo) !important; border: 0 !important; box-shadow: var(--nr-sm) !important; color: var(--ink-2) !important; border-radius: 12px !important; }
+html body .tb-home:hover, html body .tb-icons > button:hover, html body .tb-up:hover, html body .pal-btn:hover { color: var(--accent) !important; }
+html body .tb-home:active, html body .tb-icons > button:active, html body .tb-up:active, html body .pal-btn:active { box-shadow: var(--ni-sm) !important; }
+html body .tb-div { background: var(--line-2) !important; }
+html body .chip.src { background: var(--neo) !important; border: 0 !important; box-shadow: var(--ni-sm) !important; }
+
+/* search */
+html body .gsearch input { background: var(--neo) !important; border: 0 !important; box-shadow: var(--ni) !important; border-radius: 14px !important; height: 40px; }
+html body .gsearch input:hover { border: 0 !important; }
+html body .gsearch input:focus { background: var(--neo) !important; box-shadow: var(--ni), 0 0 0 2px rgb(var(--p-rgb) / .35) !important; }
+html body .gsearch kbd { background: var(--neo) !important; border: 0 !important; box-shadow: var(--nr-xs) !important; }
+html body #gsPop, html body .gs-pop, html body #palPop, html body .pal-pop, html body .sn-menu { background: var(--neo) !important; border: 0 !important; border-radius: 16px !important; box-shadow: var(--nr), 0 18px 40px -18px var(--neo-lo) !important; }
+
+/* ---------- sidebar: same soft surface, pressed-in selected item ---------- */
+html body .sidenav { background: var(--neo) !important; color: var(--ink-2) !important; border-right: 0 !important; box-shadow: 8px 0 18px -10px var(--neo-lo) !important; }
+html body .sn-nav { scrollbar-color: var(--line-2) transparent; }
+html body .sn-name b { color: var(--ink) !important; }
+html body .sn-name span { color: var(--accent) !important; }
+html body .sn-logo { box-shadow: var(--nr-sm) !important; }
+html body .sidenav .tab { color: var(--ink-2) !important; background: transparent !important; border-radius: 12px !important; }
+html body .sidenav .tab svg { color: var(--ink-3) !important; }
+html body .sidenav .tab:hover { background: var(--neo) !important; color: var(--ink) !important; box-shadow: var(--nr-xs) !important; }
+html body .sidenav .tab[aria-selected="true"] { background: var(--neo) !important; color: var(--accent) !important; font-weight: 700; box-shadow: var(--ni-sm) !important; }
+html body .sidenav .tab[aria-selected="true"] svg { color: var(--accent) !important; }
+html body .sidenav .tab[aria-selected="true"]::before { background: var(--accent) !important; box-shadow: none !important; }
+html body .sidenav .tab .cnt, html body .sidenav .tab[aria-selected="true"] .cnt { background: var(--neo) !important; color: var(--accent) !important; box-shadow: var(--nr-xs) !important; }
+html body .nav-gh { color: var(--ink-3) !important; }
+html body .nav-gh svg { color: var(--ink-3) !important; }
+html body .nav-gh:hover { background: transparent !important; color: var(--ink) !important; }
+html body .nav-g:has(.tab[aria-selected="true"]) .nav-gh { color: var(--ink) !important; }
+html body .nav-g:has(.tab[aria-selected="true"]) .nav-gh svg { color: var(--accent) !important; }
+html body.nav-min .nav-g:has(.tab[aria-selected="true"]) .nav-gh { background: var(--neo) !important; color: var(--accent) !important; box-shadow: var(--ni-sm) !important; }
+html body .nav-gi { border-left-color: var(--line-2) !important; }
+html body .sn-foot { border-top-color: var(--line) !important; }
+html body .sn-collapse { color: var(--ink-3) !important; }
+html body .sn-collapse:hover { background: transparent !important; color: var(--ink) !important; }
+html body .sn-ubtn { background: var(--neo) !important; border: 0 !important; box-shadow: var(--nr-sm) !important; border-radius: 14px !important; }
+html body .sn-ubtn:hover, html body .sn-user.open .sn-ubtn { background: var(--neo) !important; box-shadow: var(--ni-sm) !important; }
+html body .sn-user .who-t b { color: var(--ink) !important; }
+html body .sn-user .who-t small, html body .sn-uchev { color: var(--ink-3) !important; }
+html body .sn-user .av::after { border-color: var(--neo) !important; }
+html body.nav-min .sn-ubtn { background: transparent !important; box-shadow: none !important; }
+
+/* ---------- buttons ---------- */
+html body .btn { background: var(--neo) !important; border-color: transparent !important; color: var(--ink-2) !important; border-radius: 12px !important; box-shadow: var(--nr-sm) !important; }
+html body .btn:hover { color: var(--accent) !important; background: var(--neo) !important; border-color: transparent !important; }
+html body .btn:active, html body .btn[aria-pressed="true"] { box-shadow: var(--ni-sm) !important; transform: none; }
+html body .btn.primary, html body .tb-ex { background: linear-gradient(145deg, var(--b1), var(--b2)) !important; color: #fff !important; border: 0 !important; box-shadow: var(--nr-sm), inset 0 1px 0 rgba(255,255,255,.2) !important; }
+html body .btn.primary:hover, html body .tb-ex:hover { color: #fff !important; filter: brightness(1.05); box-shadow: var(--nr-sm), 0 6px 16px -6px rgb(var(--p-rgb) / .55) !important; }
+html body .btn.primary:active, html body .tb-ex:active { box-shadow: inset 3px 3px 7px rgba(0,0,0,.25), inset -2px -2px 6px rgba(255,255,255,.15) !important; }
+/* coloured buttons keep their colour (WhatsApp green, email blue, sign-out red), with soft depth */
+html body .btn.wa { background: linear-gradient(145deg, #22c55e, #059669) !important; color: #fff !important; box-shadow: var(--nr-sm) !important; }
+html body .btn.mail { background: linear-gradient(145deg, #0ea5e9, #2563eb) !important; color: #fff !important; box-shadow: var(--nr-sm) !important; }
+html body .btn.lo-ok { background: linear-gradient(145deg, #E5484D, #C9302C) !important; color: #fff !important; box-shadow: var(--nr-sm) !important; }
+html body .btn.wa:hover, html body .btn.mail:hover, html body .btn.lo-ok:hover { color: #fff !important; filter: brightness(1.06); }
+html body .btn.wa:active, html body .btn.mail:active, html body .btn.lo-ok:active { box-shadow: inset 3px 3px 7px rgba(0,0,0,.25), inset -2px -2px 6px rgba(255,255,255,.15) !important; }
+html body .btn:disabled { box-shadow: var(--nr-xs) !important; opacity: .55; }
+
+/* segmented toggles: pressed group, the chosen one raised */
+html body .seg { background: var(--neo) !important; border: 0 !important; box-shadow: var(--ni-sm) !important; border-radius: 14px !important; padding: 4px; }
+html body .seg button { border-radius: 10px !important; }
+html body .seg button[aria-pressed="true"] { background: var(--neo) !important; color: var(--accent) !important; box-shadow: var(--nr-xs) !important; }
+
+/* chips & tags */
+html body .chip { background: var(--neo) !important; border: 0 !important; box-shadow: var(--nr-xs) !important; }
+html body .chip[aria-pressed="true"], html body .chip.on, html body .chip.active { box-shadow: var(--ni-sm) !important; color: var(--accent) !important; }
+html body .tag { border: 0 !important; box-shadow: var(--nr-xs) !important; }
+
+/* ---------- inputs ---------- */
+html body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), html body select, html body textarea {
+  background-color: var(--neo) !important; border-color: transparent !important; box-shadow: var(--ni-sm) !important; border-radius: 12px !important; }
+html body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, html body select:focus, html body textarea:focus {
+  outline: none; border-color: transparent !important; box-shadow: var(--ni-sm), 0 0 0 2px rgb(var(--p-rgb) / .35) !important; }
+
+/* tracks & meters: pressed channels */
+html body .hm-kbar, html body .hh-bar, html body .meter, html body .hb .tr, html body .hm-bar, html body .plan-bar .pb-track { background: var(--neo) !important; box-shadow: var(--ni-sm) !important; border: 0 !important; }
+
+/* ---------- tables ---------- */
+html body .tbl-wrap { border-top: 0 !important; }
+html body th, html body th.sticky-col { background: var(--neo) !important; color: var(--ink-3) !important; border-bottom: 1px solid var(--line-2) !important; }
+html body td { border-bottom-color: var(--line) !important; }
+html body td.sticky-col { background: var(--neo) !important; }
+html body tbody tr.click:hover td, html body tbody tr:hover td { background: rgb(var(--p-rgb) / .045) !important; }
+
+/* ---------- Home ---------- */
+html body .hm-kic, html body .hm-ic, html body .ph-ic { background: var(--neo) !important; box-shadow: var(--nr-xs) !important; }
+html body .hh-av { box-shadow: var(--nr-xs) !important; }
+html body .hm-m { background: rgba(255,255,255,.08) !important; border-radius: 14px !important; }
+
+/* ---------- Data page drop zone ---------- */
+html body #drop, html body .drop { background: var(--neo) !important; border: 2px dashed var(--line-2) !important; box-shadow: var(--ni) !important; border-radius: 18px !important; }
+
+/* ---------- dialogs ---------- */
+html body .modal, html body .lo-modal { background: var(--neo) !important; border: 0 !important; border-radius: 24px !important; box-shadow: 14px 14px 34px rgba(0,0,0,.28), -6px -6px 18px var(--neo-hi) !important; }
+html body .toast { border-radius: 14px !important; }
