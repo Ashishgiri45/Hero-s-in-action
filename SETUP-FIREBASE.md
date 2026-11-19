@@ -26,18 +26,16 @@ Steps marked **YOU** need your own sign-in. Claude never types your passwords.
 
 Then **Create**.
 
-### 4. Connect this folder to the project — YOU (sign-in) + Claude
-In a terminal in this folder:
-```
-firebase login
-```
-A browser opens. Sign in with the same Google account and click Allow. Then give Claude the Project ID, or run these yourself:
-```
-firebase use --add <PROJECT-ID>        (alias: default)
-python build.py --firebase
-firebase deploy --only firestore:rules,hosting
-```
-The site is now at `https://<PROJECT-ID>.web.app`.
+### 4. Let GitHub deploy — YOU (Chrome only, one time)
+Project ID: **heros-in-action** (already set in `.firebaserc`).
+1. Firebase console → ⚙ Project settings → **Service accounts** → **Generate new private key**. A `.json` file downloads.
+2. Open it in Notepad and copy everything.
+3. GitHub repo → Settings → Secrets and variables → Actions → **New repository secret**.
+   Name `FIREBASE_SERVICE_ACCOUNT`, paste the text, then **Add secret**.
+4. Delete the downloaded `.json` file. It is a master key.
+
+From then on, every push to `main` builds the site and deploys **the website + the Firestore security rules**.
+Site: **https://heros-in-action.web.app**
 
 ### 5. First admin sign-in — YOU
 1. Open the site and click **First time? Set your password**.
@@ -59,17 +57,8 @@ Forgot the password? Click **Forgot password?** on the sign-in page.
 
 Only emails in the workbook's **Contacts** sheet get access. Today 19 SEs/ASMs have no row there, so add them first.
 
-### 7. Automatic deploy from GitHub — YOU (sign-in) + Claude
-After the code is on GitHub (private repo `heroes-in-action-tracker`), run this in this folder:
-```
-firebase init hosting:github
-```
-When it asks:
-- Repository: `<your-github-name>/heroes-in-action-tracker`
-- Run a build script: **No**. The workflow file is already in `.github/workflows/`, so keep the existing file and don't overwrite it.
-
-This signs in to GitHub in the browser and stores the secret **FIREBASE_SERVICE_ACCOUNT** in the repo.
-From then on, every push to `main` updates the website. Data updates do **not** need a deploy.
+### 7. Automatic deploy
+Already set up in step 4 (`.github/workflows/deploy-firebase.yml`). Data updates do **not** need a deploy.
 
 ---
 
