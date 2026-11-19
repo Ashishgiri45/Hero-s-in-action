@@ -1,8 +1,8 @@
 # 16-Point KPI Tracker - Heroes in Action
-# Every push to main builds dist/ (no data inside) and deploys it to Firebase Hosting.
-# Needs one repository secret: FIREBASE_SERVICE_ACCOUNT (see SETUP-FIREBASE.md, step 7).
-# The Firebase project id comes from .firebaserc.
-name: Deploy to Firebase Hosting
+# Every push to main builds dist/ (no data inside) and deploys the website + Firestore security rules to Firebase.
+# Needs one repository secret: FIREBASE_SERVICE_ACCOUNT (the JSON key from Firebase > Project settings >
+# Service accounts > Generate new private key). The Firebase project id comes from .firebaserc.
+name: Deploy to Firebase
 on:
   push:
     branches: [main]
@@ -17,13 +17,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Build site (no data)
         run: python build.py --firebase
       - name: Check no data files are in dist
         run: |
           if find dist -name '*.json' -o -name 'data.js' -o -name '*.xls*' | grep -q .; then echo "Data file found in dist - stopping"; exit 1; fi
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
+      - name: Check the Firebase key is set
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then echo "Add the repository secret FIREBASE_SERVICE_ACCOUNT first (see SETUP-FIREBASE.md)"; exit 1; fi
+      - name: Deploy website + security rules
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@15 deploy --only hosting,firestore:rules --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"
