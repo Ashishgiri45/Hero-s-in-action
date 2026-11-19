@@ -18,7 +18,7 @@ const PAGES = {
   tracking: { g: 'Plans & Execution', t: 'Action Tracking', d: 'Status, remarks and manager confirmation of every generated action.' },
   actions: { g: 'Dealer Analytics', t: 'Dealer Focus', d: 'Dealers to act on today and why — ready to share on WhatsApp.' },
   dealers: { g: 'Dealer Analytics', t: 'Dealer Drill-down', d: 'Every mapped dealer with its volume, billing, range and KPI inputs.' },
-  leaderboard: { g: 'Distribution & Productivity', t: '16-KPI Scorecard', d: 'All 16 KPIs per SE / ASM: billing points, DJP, sub-dealers, NPD, range, premium, OD and more.' },
+  leaderboard: { g: 'Distribution & Productivity', t: '16-KPI Scorecard', d: 'All 16 KPIs per SE / ASM: orders, billing, run rate, billing points, revenue per dealer, MBD, growth, DJP, productive calls and sell-through.' },
   daywise: { g: 'Sales & Performance', t: 'Trends', d: 'Billing points and units by day, weekly performance, improvement analysis and day-wise progression.' },
   export: { g: 'Reports & Downloads', t: 'Export Centre', d: 'Every report as Excel for the current filters, or for everyone.' },
   data: { g: 'Data Management', t: 'Upload & Publish', d: 'Upload the master workbook or a daily dump, see the refresh status and publish to the website.' },
@@ -185,7 +185,49 @@ function gsGo(p, what) {
   GS.q = ''; $('#gsIn').value = ''; $('#gsIn').blur(); gsRender();
   toast(`${lv} ${p.n} · ${(PAGES[what === 'profile' ? (lv === 'ASM' ? 'asm' : 'rse') : what] || {}).t || ''}`);
 }
+/* ---------- “See the 16 KPIs of …” box on the Overview: pick a person, the 16 KPI cards switch to them ---------- */
+const KQ = { items: [], act: 0 };
+function kqSync() {
+  const f = curF(), who = f.se ? 'SE ' + f.se : f.asm ? 'ASM ' + f.asm : f.rsm && !f.zone ? 'RSM ' + f.rsm : f.zone ? f.zone + ' zone' : '';
+  if ($('#kqNow')) $('#kqNow').innerHTML = who ? `Showing <b>${esc(who)}</b>` : 'Showing <b>everyone in your view</b>';
+  if ($('#kqClear')) $('#kqClear').hidden = !who || ((SEED.meta.user || {}).role && SEED.meta.user.role !== 'admin' && !f.se);
+}
+function kqPick(p) {
+  navPush();
+  const base = { rsm: '', zone: '', asm: '', se: '', st: '', dist: '', cat: '' };
+  if (p.lvl === 'RSM') Object.assign(ST, base, { rsm: p.n });
+  else if (p.lvl === 'ASM') { const a = DB.asms.find(x => x.n === p.n) || {}; Object.assign(ST, base, { asm: p.n, zone: a.z || '' }); }
+  else { const s = DB.seInfo.get(p.n) || {}; Object.assign(ST, base, { se: p.n, asm: s.asm || '', zone: s.z || '' }); }
+  const inp = $('#kqIn'); inp.value = ''; $('#kqPop').hidden = true; inp.setAttribute('aria-expanded', 'false'); inp.blur();
+  renderAll(); if (ST.tab !== 'overview') onTab('overview');
+  setTimeout(() => { const t = $('#tileGroups'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+  toast(`16 KPIs · ${p.lvl} ${p.n}`);
+}
+function kqRender() {
+  const inp = $('#kqIn'), pop = $('#kqPop'), q = inp.value;
+  if (!q.trim()) { pop.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
+  KQ.items = gsFind(q); if (KQ.act >= KQ.items.length) KQ.act = 0;
+  pop.innerHTML = KQ.items.length ? KQ.items.map((p, i) => { const sk = p.status ? PSTAT[p.status] : null;
+    return `<div class="kq-it${i === KQ.act ? ' on' : ''}" role="option" aria-selected="${i === KQ.act}" data-ki="${i}"><b>${gsHi(p.n, q)}</b><span class="gs-lv">${p.lvl}</span>${sk ? `<span class="pill s-${sk.k}">${sk.l}</span>` : ''}<small>${esc([p.z && p.z + ' zone', p.lvl === 'SE' && p.asm ? 'ASM ' + p.asm : ''].filter(Boolean).join(' · '))}</small></div>`; }).join('')
+    : `<div class="gs-empty">No RSM, ASM or SE matches “${esc(q)}”.</div>`;
+  pop.hidden = false; inp.setAttribute('aria-expanded', 'true');
+}
+function wireKq() {
+  const inp = $('#kqIn'), pop = $('#kqPop'); if (!inp) return;
+  inp.oninput = () => { KQ.act = 0; kqRender(); };
+  inp.onkeydown = e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!KQ.items.length) return; KQ.act = (KQ.act + (e.key === 'ArrowDown' ? 1 : KQ.items.length - 1)) % KQ.items.length; kqRender(); }
+    else if (e.key === 'Enter') { e.preventDefault(); const p = KQ.items[KQ.act]; if (p) kqPick(p); }
+    else if (e.key === 'Escape') { inp.value = ''; kqRender(); }
+  };
+  pop.addEventListener('mousedown', e => e.preventDefault());
+  pop.addEventListener('click', e => { const it = e.target.closest('[data-ki]'); if (it && KQ.items[+it.dataset.ki]) kqPick(KQ.items[+it.dataset.ki]); });
+  document.addEventListener('click', e => { if (!e.target.closest('#kq')) pop.hidden = true; });
+  $('#kqClear').onclick = () => { navPush(); Object.assign(ST, { rsm: '', zone: '', asm: '', se: '', st: '', dist: '', cat: '' }); renderAll(); };
+  kqSync();
+}
 function wireSearch() {
+  wireKq();
   const inp = $('#gsIn'), pop = $('#gsPop');
   inp.oninput = () => { GS.q = inp.value; GS.act = 0; gsRender(); };
   inp.onfocus = () => { if (GS.q.trim()) gsRender(); };

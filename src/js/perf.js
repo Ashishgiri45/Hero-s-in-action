@@ -82,7 +82,7 @@ function officialOf(f, day) {
   if (!rows || !rows.some(r => r.target || r.orderAch || r.billVol)) return null;
   const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
   const o = { target: sum('target'), billVol: sum('billVol'), mtdPlan: sum('mtdPlan'), orderAch: sum('orderAch'), balance: sum('balance'),
-    curRR: sum('curRR'), reqRR: sum('reqRR'), dayPunch: sum('dayPunch'), bpT: sum('bpT'), bpA: sum('bpA'), daysLeft: DB.dim - offDay(), daysGone: offDay() };
+    curRR: sum('curRR'), reqRR: sum('reqRR'), open: sum('open'), cancel: rows.some(r => r.cancel != null) ? sum('cancel') : null, dayPunch: sum('dayPunch'), bpT: sum('bpT'), bpA: sum('bpA'), daysLeft: DB.dim - offDay(), daysGone: offDay() };
   if (rows.length === 1) { o.mbdT = rows[0].mbdT; o.mbdA = rows[0].mbdA; o.reqRR = rows[0].reqRR; o.curRR = rows[0].curRR; }
   else { const ok = rows.filter(r => r.balance > 0); o.reqRR = o.daysLeft > 0 ? ok.reduce((s, r) => s + r.balance, 0) / o.daysLeft : 0; }
   if (!(o.reqRR > 0)) o.reqRR = o.balance > 0 && o.daysLeft > 0 ? o.balance / o.daysLeft : 0;
@@ -121,7 +121,7 @@ function perfOf(f, day = ST.day) {
     const tFull = plan > 0 ? plan * w.wd / DB.wdTotal : null, tTo = plan > 0 ? plan * wdTo / DB.wdTotal : null;
     return { ...w, to: e, wdTo, complete: w.e <= day, units, tFull, tTo, pct: tTo ? units / tTo : null, zero, best, bestD, bpNew: bp[e] - (w.s > 1 ? bp[w.s - 1] : 0), cumEnd: cum[e] };
   });
-  const k1 = r.k[1];
+  const k1 = r.o[1];
   const res = {
     f, day, idx, plan, active, du, bp, cum, mtd, expected, pace, ach, gap, need, rr, dailyT, wdGone, wdLeft, share, wk,
     trend: trendOf(wk), r, status: paceStatus(pace), bpPace: k1.has && share > 0 ? k1.a / (k1.t * share) : null, mapped: idx.length,

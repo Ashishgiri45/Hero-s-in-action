@@ -652,3 +652,20 @@ body.nav-min .sn-uchev { display: none; }
 .name-q { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
 .name-q input { flex: 1 1 260px; max-width: 360px; height: 38px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--surface-2); color: var(--ink); font: 14px var(--f-body); }
 .name-q input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(var(--p-rgb) / .18); }
+
+/* “See the 16 KPIs of …” search box on the Overview */
+.kq { padding: 14px 16px; margin: 6px 0 4px; }
+.kq-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.kq-l { font: 700 15px var(--f-body); color: var(--ink); }
+.kq-box { position: relative; flex: 1 1 280px; max-width: 460px; }
+.kq-box input { width: 100%; height: 42px; border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; background: var(--surface-2); color: var(--ink); font: 15px var(--f-body); box-sizing: border-box; }
+.kq-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(var(--p-rgb) / .2); }
+.kq-pop { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 40px -16px rgba(16,24,40,.35); padding: 6px; max-height: 340px; overflow: auto; }
+.kq-it { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 9px 10px; border-radius: 10px; cursor: pointer; }
+.kq-it small { flex-basis: 100%; color: var(--ink-3); }
+.kq-it.on, .kq-it:hover { background: rgb(var(--p-rgb) / .1); }
+.kq-now { color: var(--ink-2, var(--ink-3)); font-size: 14px; }
+
+/* month filter on the 16-KPI Scorecard */
+.lb-mon{display:inline-flex;align-items:center;gap:6px}
+.lb-mon select{min-width:150px;padding:6px 28px 6px 10px;font:inherit;font-size:13px}

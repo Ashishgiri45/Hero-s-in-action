@@ -23,7 +23,7 @@ function momentum(p) {
 }
 
 /* billing points: the workbook dashboard's target/achievement when present, else KPI 1 */
-const bpOf = p => p.official && p.official.bpT ? { has: true, t: p.official.bpT, a: p.official.bpA } : p.r.k[1];
+const bpOf = p => p.official && p.official.bpT ? { has: true, t: p.official.bpT, a: p.official.bpA } : p.r.o[1];
 
 /* ---------- how the plan's numbers are worked out, step by step with the person's own figures ---------- */
 function calcSteps(p) {
@@ -66,7 +66,7 @@ function officialVol(p, who, pd, due, follow, team) {
 
 /* ---------- shared KPI actions (SE level, dealer evidence) ---------- */
 function kpiActions(p, owner, pd, follow) {
-  const r = p.r, K = r.k, out = [], acts = actionsFor(r.idx, p.day), wl = Math.max(1, p.official ? p.daysLeft : p.wdLeft), dl = p.official ? 'days' : 'working days';
+  const r = p.r, K = r.o, out = [], acts = actionsFor(r.idx, p.day), wl = Math.max(1, p.official ? p.daysLeft : p.wdLeft), dl = p.official ? 'days' : 'working days';
   const due = { deadline: `${pd.label}, ${CFG.checkTime}`, dueISO: pd.iso };
   const k1 = bpOf(p);
   if (k1.has && k1.a < k1.t) {
@@ -313,7 +313,7 @@ function weeklyASM(name, wn, day = ST.day) {
     outcome: 'Each coached SE reaches ≥ 90% of the next week target.', owner: name, follow: `Checkpoints ${c.mid || 'mid-week'} and ${c.end || 'week end'}`, ...due }));
   const dec = tw.filter(o => o.pw && o.pw.pct != null && o.w.complete && o.w.pct - o.pw.pct < -CFG.stable);
   if (dec.length) items.push(act({ key: 'wdec', priority: 'Medium', issue: `${plural(dec.length, 'SE')} declined week on week`, evidence: dec.map(o => `${o.x.name} ${fP(o.pw.pct)} → ${fP(o.w.pct)}`).join('; ') + '.', action: 'Ask each one for the reason (supply, demand, coverage) and log it in Remarks.', outcome: 'Causes recorded and fixes agreed.', owner: name, follow, basis: BASIS.inv, ...due }));
-  const k1 = p.r.k[1];
+  const k1 = p.r.o[1];
   if (k1.has && k1.a < k1.t && c.wdNext) {
     const n = Math.max(1, Math.ceil((k1.t - k1.a) * (c.started ? c.wdRem : c.wdNext) / Math.max(1, p.wdLeft)));
     items.push(act({ key: 'wbp', priority: prioOf(paceStatus(p.bpPace)), issue: `Team billing points ${fN(k1.a)} of ${fN(k1.t)}`, evidence: `${wpk ? fN(wpk.bpNew) + ' new billing points in ' + wpk.label + '.' : ''}`, action: `Add ${plural(n, 'new billing point')} in ${c.label.split(' ·')[0]}, split across the SEs with the largest gaps.`, outcome: `BP ${fN(k1.a + n)} of ${fN(k1.t)}.`, owner: name, follow, ...due }));

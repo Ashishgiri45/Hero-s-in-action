@@ -11,47 +11,52 @@ const fP1 = v => (v == null || !isFinite(v)) ? '–' : (Math.round(v * 1000) / 1
 const inr = v => { v = v || 0; const a = Math.abs(v); return a >= 1e7 ? '₹' + (v / 1e7).toFixed(2) + ' Cr' : a >= 1e5 ? '₹' + (v / 1e5).toFixed(1) + ' L' : '₹' + NF.format(Math.round(v)); };
 const plural = (n, w, p) => fN(n) + ' ' + (n === 1 ? w : (p || w + 's'));
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONF = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// the loaded data's month (short / full) and the month before it — used in labels instead of fixed month names
+const curMon = () => (typeof DB !== 'undefined' && DB && DB.m ? MON[DB.m - 1] : 'this month'), curMonF = () => (typeof DB !== 'undefined' && DB && DB.m ? MONF[DB.m - 1] : 'this month');
+const prevMonF = () => (typeof DB !== 'undefined' && DB && DB.m ? MONF[(DB.m + 10) % 12] : 'last month');
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }, del(k) { try { localStorage.removeItem(k); } catch (e) {} } };
 function toast(msg, ms = 3200) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, ms); }
 
-/* ================= KPI catalogue (mirrors KPI Config sheet of SE Evaluation workbook) ================= */
+/* ================= KPI catalogue — 16 business KPIs, all from sheets updated daily
+   (Dashboard SE / ASM, Billing, Dealer_Val1, MTD DJP SUMMARY, Check In Check out, Secondary) ================= */
 const KPI = [
-  { id: 1, name: '% Dealers billed / month', short: 'Billing points (BP)', grp: 'Coverage', w: .1, mult: .9, src: 'live', unit: 'dealers',
-    def: 'Dealers of the scope with net cycle billing > 0 this month.', tgt: 'ROUND(active dealers × 0.9)' },
-  { id: 2, name: '% Dealers covered per PJP', short: 'PJP adherence', grp: 'Coverage', w: .1, src: 'pjp', unit: 'visits',
-    def: 'Actual PJP visits vs MTD planned visits (SE own plan; ASM own plan at ASM level).', tgt: 'MTD planned visits (direct pull)' },
-  { id: 3, name: '% Sub-dealers billed', short: 'Sub-dealer billing points', grp: 'Coverage', w: .1, mult: .75, src: 'sub', unit: 'sub-dealers',
-    def: 'Unique sub-dealers billed by the SE’s distributors, Oct MTD.', tgt: 'ROUND(mapped sub-dealers × 0.75)' },
-  { id: 4, name: '% Dealers growing value', short: 'Value-growth dealers', grp: 'Growth & range', w: .1, mult: .75, src: 'mis', unit: 'dealers',
-    def: 'Active dealers whose YTD 26-27 value is above the period-matched YTD 23-24 base.', tgt: 'ROUND(active dealers × 0.75)' },
-  { id: 5, name: '% Counters with NPD placement', short: 'NPD placement', grp: 'Growth & range', w: .1, mult: .5, src: 'live', unit: 'dealers',
-    def: 'Billed dealers with net billing of any SKU on the NPD SKU list this month.', tgt: 'ROUND(active dealers × 0.5)' },
-  { id: 6, name: 'MBD – models per dealer', short: 'Models per dealer (MBD)', grp: 'Growth & range', w: .1, src: 'live', unit: 'models', avg: true,
-    def: 'Average distinct models (Segment+Model) per billed dealer this month.', tgt: 'Average of dealer targets: L3M avg 0→7; <7→7; 7–9→+3; 10–15→+2; >15→+1' },
-  { id: 7, name: '% Dealers improving ASP', short: 'ASP-growth dealers', grp: 'Growth & range', w: .1, mult: .75, src: 'mis', unit: 'dealers',
-    def: 'Dealers whose YTD 26-27 ASP is above the YTD 23-24 base ASP.', tgt: 'ROUND(active dealers × 0.75)' },
-  { id: 8, name: '% Dealers billing premium', short: 'Premium dealers', grp: 'Premium mix', w: .1, mult: .75, src: 'live', unit: 'dealers',
-    def: 'Billed dealers with net premium billing (Premium flag = Y) this month.', tgt: 'ROUND(active dealers × 0.75)' },
-  { id: 9, name: 'Premium share of volume', short: 'Premium share', grp: 'Premium mix', w: .1, src: 'live', unit: 'share', ratio: true, fixed: .06,
-    def: 'Premium units ÷ total cycle units billed this month.', tgt: '6% (fixed)' },
-  { id: 10, name: '% Dealers with no overdue (OD)', short: 'No-overdue dealers', grp: 'Dealer health', w: .1, mult: .9, src: 'od', unit: 'dealers',
-    def: 'Active dealers with no OD above ₹10,000 (legal cases excluded), latest OD snapshot.', tgt: 'ROUND(active dealers × 0.9)' },
-  { id: 11, name: '% Dealers with no pending complaints', short: 'No open complaints', grp: 'Dealer health', w: 0, mult: .9, src: 'snap', unit: 'dealers',
-    def: 'Active dealers with no complaint whose SAP status is not CL.', tgt: 'ROUND(active dealers × 0.9)' },
-  { id: 12, name: '% Dealers > 4.0 Google rating', short: 'Google rating > 4.0', grp: 'Dealer health', w: 0, mult: .3, src: 'snap', unit: 'dealers',
-    def: 'Dealers with an average Google rating above 4.0.', tgt: 'ROUND(active dealers × 0.3)' },
-  { id: 13, name: '% Dealers having GSB', short: 'GSB installed', grp: 'Visibility & market', w: 0, mult: .5, src: 'snap', unit: 'dealers',
-    def: 'Active dealers with a glow sign board.', tgt: 'ROUND(active dealers × 0.5)' },
-  { id: 14, name: '% Dealers having ISB', short: 'In-shop branding', grp: 'Visibility & market', w: 0, mult: .5, src: 'snap', unit: 'dealers',
-    def: 'Active dealers with in-shop branding.', tgt: 'ROUND(active dealers × 0.5)' },
-  { id: 15, name: '% Dealers in districts ≥ State PLS', short: 'District PLS ≥ State', grp: 'Visibility & market', w: 0, mult: .6, src: 'snap', unit: 'dealers',
-    def: 'Dealers in districts whose population-linked share is at or above the state, with FY26-27 YTD sales > 0.', tgt: 'ROUND(active dealers × 0.6)' },
-  { id: 16, name: '% Dealers in districts ≥ State DPL', short: 'District DPL ≥ State', grp: 'Visibility & market', w: 0, mult: .6, src: 'snap', unit: 'dealers',
-    def: 'Dealers in districts whose dealers-per-lakh is at or above the state, with FY26-27 YTD sales > 0.', tgt: 'ROUND(active dealers × 0.6)' },
+  { id: 1, name: 'Order achievement % (MTD)', short: 'Order achievement', col: 'Orders', grp: 'Sales & orders', w: .10, src: 'dash', unit: 'units',
+    def: 'MTD orders ÷ MTD order plan (Dashboard SE / ASM: MTD Order Ach ÷ MTD Plan).', tgt: 'MTD plan from the Dashboard sheet' },
+  { id: 2, name: 'Billing achievement % (vs MTD target)', short: 'Billing achievement', col: 'Billing', grp: 'Sales & orders', w: .10, src: 'dash', unit: 'units',
+    def: 'Billing volume MTD ÷ month target pro-rata to calendar days gone (Dashboard SE / ASM).', tgt: 'Month target × days gone ÷ days in month' },
+  { id: 3, name: 'Run-rate health', short: 'Run-rate health', col: 'Run-rate', grp: 'Sales & orders', w: .05, src: 'dash', unit: 'units/day', avg: true,
+    def: 'Current run rate ÷ required run rate (Dashboard SE / ASM). Target already reached = full marks.', tgt: 'Required run rate (units/day)' },
+  { id: 4, name: 'Order → billing conversion %', short: 'Order conversion', col: 'Convert', grp: 'Sales & orders', w: .05, src: 'dash', unit: 'share', ratio: true,
+    def: 'Billing volume ÷ MTD orders (Dashboard SE / ASM). Open orders shown alongside.', tgt: '85%' },
+  { id: 5, name: 'Order cancellation % (lower is better)', short: 'Order cancellation', col: 'Cancel', grp: 'Sales & orders', w: .05, src: 'dash', unit: 'share', ratio: true, lower: true,
+    def: 'Cancelled orders CM ÷ (MTD orders + cancelled). Score = 10% ÷ actual, capped.', tgt: '10% or less' },
+  { id: 6, name: 'Dealers billed (billing points)', short: 'Billing points', col: 'BP', grp: 'Dealer coverage', w: .10, src: 'dash', unit: 'dealers',
+    def: 'Billing Point Acht ÷ Billing Point Target (Dashboard SE / ASM); dealers billed vs 90% of active dealers where the sheet has no row.', tgt: 'Billing Point Target' },
+  { id: 7, name: 'Revenue per active dealer', short: 'Revenue per dealer', col: '₹/dealer', grp: 'Dealer coverage', w: .075, src: 'live', unit: '₹', inr: true,
+    def: 'Billing value MTD ÷ dealers billed this month (Billing sheet).', tgt: 'All-India average for the same day' },
+  { id: 8, name: 'MBD achievement (models per dealer)', short: 'MBD achievement', col: 'MBD', grp: 'Dealer coverage', w: .075, src: 'dash', unit: 'models', avg: true,
+    def: 'MBD Acht ÷ MBD Target (Dashboard SE / ASM); average models per billed dealer vs dealer MBD targets above person level.', tgt: 'MBD Target' },
+  { id: 9, name: 'Dealer reactivation', short: 'Dealers reactivated', col: 'Reactiv.', grp: 'Dealer coverage', w: .05, src: 'live', unit: 'dealers',
+    def: 'Dealers billed this month who had no billing in the 3 months before (Dealer_Vol1), plus new dealer codes.', tgt: '20% of the dormant dealers (min 1)' },
+  { id: 10, name: '% Dealers growing value', short: 'Value-growth dealers', col: 'Value gr.', grp: 'Growth & mix', w: .05, src: 'mis', unit: 'dealers',
+    def: 'Active dealers whose value is above last year’s base (Dealer_Val1 growth flag).', tgt: '75% of active dealers' },
+  { id: 11, name: '% Dealers improving ASP', short: 'ASP-growth dealers', col: 'ASP gr.', grp: 'Growth & mix', w: .05, src: 'mis', unit: 'dealers',
+    def: 'Dealers whose ASP (₹ per unit) is above last year’s base (Dealer_Val1 ASP flag).', tgt: '75% of active dealers' },
+  { id: 12, name: '% Counters with NPD placement', short: 'NPD placement', col: 'NPD', grp: 'Growth & mix', w: .05, src: 'live', unit: 'dealers',
+    def: 'Billed dealers with any SKU from the NPD SKU list this month (Billing sheet).', tgt: '50% of active dealers' },
+  { id: 13, name: 'DJP adherence %', short: 'DJP adherence', col: 'DJP', grp: 'Field execution', w: .075, src: 'djp', unit: 'visits',
+    def: 'MTD visits made ÷ MTD visits planned (MTD DJP SUMMARY; PJP sheets where the summary has no row).', tgt: 'MTD planned visits' },
+  { id: 14, name: 'Productive call %', short: 'Productive calls', col: 'Prod.', grp: 'Field execution', w: .05, src: 'djp', unit: 'share', ratio: true,
+    def: 'Productive calls (visit with an order) ÷ visits made (MTD DJP SUMMARY).', tgt: '25% of visits' },
+  { id: 15, name: 'Market working hours', short: 'Hours in market', col: 'Hours', grp: 'Field execution', w: .025, src: 'field', unit: 'hours', avg: true,
+    def: 'Average first check-in to last check-out per working day (Check In Check out); above person level, the average of the SEs.', tgt: '6 hours a day' },
+  { id: 16, name: 'Distributor sell-through %', short: 'Sell-through', col: 'Sell-thr.', grp: 'Distribution', w: .05, src: 'sec', unit: 'share', ratio: true,
+    def: 'Units the distributors sold to outlets (Secondary sheet) ÷ units billed to those distributors (Billing), this month.', tgt: '80%' },
 ];
 const CAP = 1.2;
-const GROUPS = ['Coverage', 'Growth & range', 'Premium mix', 'Dealer health', 'Visibility & market'];
+const GROUPS = ['Sales & orders', 'Dealer coverage', 'Growth & mix', 'Field execution', 'Distribution'];
 function band(p) {
   if (p == null || !isFinite(p)) return { k: 'nd', l: 'No data' };
   if (p >= 1) return { k: 'good', l: 'Achieved' };
@@ -138,10 +143,11 @@ try { const saved = JSON.parse(store.get('tracker16.ui') || '{}'); if (saved.lb)
 
 function dealerPass(i, f) {
   const D = DB.D;
-  if (f.rsm && rsmOf(D.asm[i]) !== f.rsm) return false;
+  // one SE picked: their own dealers decide (the Dealer master can still carry an old ASM name for them)
+  if (f.rsm && !f.se && rsmOf(D.asm[i]) !== f.rsm) return false;
   if (f.dist && D.dist[i] !== f.dist) return false;
-  if (f.zone && D.z[i] !== f.zone) return false;
-  if (f.asm && D.asm[i] !== f.asm) return false;
+  if (f.zone && !f.se && D.z[i] !== f.zone) return false;
+  if (f.asm && !f.se && D.asm[i] !== f.asm) return false;
   if (f.se && D.se[i] !== f.se) return false;
   if (f.st && D.st[i] !== f.st) return false;
   if (f.cat && D.cat[i] !== f.cat) return false;
@@ -162,65 +168,82 @@ function level(f) { return f.se ? 'SE' : f.asm ? 'ASM' : f.zone ? 'Zone' : f.rsm
 function scopeName(f) { return f.se || f.asm || (f.zone ? f.zone + ' zone' : f.rsm ? 'RSM ' + f.rsm : 'All India'); }
 
 /* ================= KPI engine ================= */
-function computeKPIs(idx, ds, f, lvl) {
-  const D = DB.D; let base = 0, billed = 0, npdD = 0, premD = 0, mSum = 0, mtSum = 0, totQ = 0, premQ = 0, totV = 0, vg = 0, vgN = 0, ag = 0, agN = 0, noOD = 0, noCp = 0, gr4 = 0, gsb = 0, isb = 0, pls = 0, dpl = 0, mtAll = 0, mtN = 0;
+function computeKPIs(idx, ds, f, lvl, day) {
+  const D = DB.D; let base = 0, billed = 0, npdD = 0, premD = 0, mSum = 0, mtSum = 0, totQ = 0, premQ = 0, totV = 0, vg = 0, vgN = 0, ag = 0, agN = 0, noOD = 0, mtAll = 0, mtN = 0, dorm = 0, react = 0, sq = 0, sp = 0, so = 0, sd = 0;
   for (const i of idx) {
-    const A = D.s[i] === 'A';
-    if (D.mt[i] != null && D.s[i] !== 'N') { mtAll += D.mt[i]; mtN++; }   // workbook rule: average over every dealer in Dealer-MBD1
-    if (A) { base++; mtSum += D.mt[i] || 0; if (D.vg[i] != null) vgN++; if (D.vg[i] === 1) vg++; if (D.od[i] === 0) noOD++; if (D.cp[i] === 0) noCp++; if (D.gsb[i]) gsb++; if (D.isb[i]) isb++; }
+    const A = D.s[i] === 'A', inV = D.s[i] !== 'N';
+    if (D.mt[i] != null && inV) { mtAll += D.mt[i]; mtN++; }   // workbook rule: average over every dealer in Dealer-MBD1
+    if (A) { base++; mtSum += D.mt[i] || 0; if (D.vg[i] != null) vgN++; if (D.vg[i] === 1) vg++; if (D.od[i] === 0) noOD++; }
     if (D.ag[i] != null) agN++; if (D.ag[i] === 1) ag++;
-    if (D.gr[i] != null && D.gr[i] > 4) gr4++;
-    if (D.pls[i]) pls++; if (D.dpl[i]) dpl++;
     const q = ds.qty[i]; totQ += q; premQ += ds.pq[i]; totV += ds.val[i];
-    if (q > 0 && D.s[i] !== 'N') { billed++; mSum += ds.mc[i]; if (ds.nq[i] > 0) npdD++; if (ds.pq[i] > 0) premD++; }   // 'N' = not in Dealer_Vol1: outside the workbook's KPI counts (units still count)
+    if (q > 0 && inV) { billed++; mSum += ds.mc[i]; if (ds.nq[i] > 0) npdD++; if (ds.pq[i] > 0) premD++; }   // 'N' = not in Dealer_Vol1: outside the KPI counts (units still count)
+    // dormant = no billing in the 3 months before (Dealer_Vol1), or a new code billed for the first time
+    if ((D.s[i] === 'A' || D.s[i] === 'I' || D.xm && D.xm[i]) && !(D.l3[i] > 0)) { dorm++; if (q > 0) react++; }
+    if (D.sq && D.sq[i] > 0) { sd++; sq += D.sq[i]; sp += Math.max(0, q, (D.l3[i] || 0) * DB.wd[day] / DB.wdTotal); so += D.so[i] || 0; }   // vs units billed to the distributor, or its usual month pro-rata if more
   }
   const T = m => Math.round(base * m);
-  const r = {};
-  const put = (id, t, a, has = true, extra = {}) => { const p = has && t > 0 ? a / t : null; r[id] = Object.assign({ id, t, a, p, has: has && t > 0 }, extra); };
-  put(1, T(.9), billed);
-  // PJP
-  let pj = null;
+  const put = (r, id, t, a, has = true, extra = {}) => { const p = has && t > 0 ? a / t : null; r[id] = Object.assign({ id, t, a, p, has: has && t > 0 }, extra); };
+  // ---- the earlier dealer KPIs, kept for the action plans and WhatsApp cards (billing points, NPD, MBD, premium, OD) ----
+  const o = {};
+  put(o, 1, T(.9), billed); put(o, 5, T(.5), npdD);
+  if (DB.meta.fromWorkbook) put(o, 6, mtN ? mtAll / mtN : 0, billed ? mSum / billed : 0, mtN > 0 && billed > 0);
+  else put(o, 6, base ? mtSum / base : 0, billed ? mSum / billed : 0, base > 0 && billed > 0);
+  put(o, 8, T(.75), premD); put(o, 9, .06, totQ > 0 ? premQ / totQ : 0, totQ > 0); put(o, 10, T(.9), noOD);
+  // ---- the 16 KPIs ----
+  const r = {}, off = typeof officialOf === 'function' ? officialOf(f, day) : null, cal = off ? offDay() / DB.dim : 0;
+  // 1–5 sales & orders: Dashboard SE / ASM (latest day, no state / area / category filter)
+  put(r, 1, off ? off.mtdPlan : 0, off ? off.orderAch : 0, !!off && off.mtdPlan > 0);
+  if (off && off.target > 0) put(r, 2, off.target * cal, off.billVol);
+  else { const plan = DB.sameMonth ? idx.reduce((s, i) => s + (D.pl[i] || 0), 0) : 0; put(r, 2, plan * DB.wd[day] / DB.wdTotal, totQ, plan > 0); }
+  if (off && off.target > 0 && !(off.balance > 0)) r[3] = { id: 3, t: 0, a: off.curRR || 0, p: CAP, has: true, met: true };
+  else put(r, 3, off ? off.reqRR : 0, off ? off.curRR || 0 : 0, !!off && off.reqRR > 0);
+  put(r, 4, .85, off && off.orderAch > 0 ? off.billVol / off.orderAch : 0, !!off && off.orderAch > 0, { open: off ? off.open : null });
+  const cx = off && off.cancel != null && (off.orderAch + off.cancel) > 0 ? off.cancel / (off.orderAch + off.cancel) : null;
+  r[5] = { id: 5, t: .10, a: cx, p: cx == null ? null : cx <= 0 ? CAP : Math.min(CAP, .10 / cx), has: cx != null, n: off ? off.cancel : 0 };
+  // 6–9 dealer coverage
+  if (off && off.bpT > 0) put(r, 6, off.bpT, off.bpA || 0, true, { off: true }); else put(r, 6, T(.9), billed);
+  const nat = natRev(ds, day); put(r, 7, nat, billed ? totV / billed : 0, billed > 0 && nat > 0, { billed, totV });
+  if (off && off.mbdT > 0 && off.mbdA != null) put(r, 8, off.mbdT, off.mbdA, true, { off: true }); else put(r, 8, o[6].t, o[6].a, o[6].has);
+  put(r, 9, dorm ? Math.max(1, Math.round(dorm * .2)) : 0, react, dorm > 0, { dorm });
+  // 10–12 growth & mix
+  put(r, 10, T(.75), vg, vgN > 0); put(r, 11, T(.75), ag, agN > 0); put(r, 12, T(.5), npdD);
+  // 13–15 field execution
+  let pj = null, hrs = null, hrsN = 0;
   if (DB.sameMonth) {
-    if (lvl === 'ASM' && f.asm) pj = DB.pjpASM[f.asm] || null;
+    if (lvl === 'SE' || lvl === 'ASM') { const nm = lvl === 'SE' ? f.se : f.asm; pj = pjpOf(lvl, nm); const fo = fieldOf(lvl, nm, day); if (fo && fo.span != null) { hrs = fo.span / 60; hrsN = 1; } }
     else {
-      const ses = f.se ? [f.se] : DB.ses.filter(s => (!f.zone || s.z === f.zone) && (!f.asm || s.asm === f.asm)).map(s => s.n);
-      let p = 0, a = 0, pc = 0, k = 0; for (const s of ses) { const x = DB.pjpSE[s]; if (x) { p += x.p; a += x.a; pc += x.pc; k++; } }
-      if (k) pj = { p, a, pc, k };
+      const ses = DB.ses.filter(s => (!f.zone || s.z === f.zone) && (!f.rsm || rsmOf(s.asm) === f.rsm)).map(s => s.n);
+      let p = 0, a = 0, pc = 0, k = 0, hs = 0; for (const s of ses) { const x = pjpOf('SE', s); if (x) { p += x.p; a += x.a; pc += x.pc || 0; k++; } const fo = fieldOf('SE', s, day); if (fo && fo.span != null) { hs += fo.span / 60; hrsN++; } }
+      if (k) pj = { p, a, pc }; if (hrsN) hrs = hs / hrsN;
     }
   }
-  put(2, pj ? pj.p : 0, pj ? pj.a : 0, !!pj, { pc: pj ? pj.pc : 0 });
-  // sub-dealer billing points
-  let sm = 0, sa = 0, sl = 0, sk = 0;
-  if (DB.sameMonth) for (const x of DB.dists) {
-    if (f.zone && x.z !== f.zone) continue; if (f.asm && x.asm !== f.asm) continue; if (f.se && x.se !== f.se) continue; if (f.st && x.st !== f.st) continue;
-    if (f.rsm && rsmOf(x.asm) !== f.rsm) continue; if (f.dist) continue;
-    sm += x.m; sa += x.mtd; sl += x.lm; sk++;
-  }
-  put(3, Math.round(sm * .75), sa, sk > 0, { lm: sl, nd: sk, mapped: sm });
-  put(4, T(.75), vg, vgN > 0);
-  put(5, T(.5), npdD);
-  if (DB.meta.fromWorkbook) put(6, mtN ? mtAll / mtN : 0, billed ? mSum / billed : 0, mtN > 0 && billed > 0);
-  else put(6, base ? mtSum / base : 0, billed ? mSum / billed : 0, base > 0 && billed > 0);
-  put(7, T(.75), ag, agN > 0);
-  put(8, T(.75), premD);
-  put(9, .06, totQ > 0 ? premQ / totQ : 0, totQ > 0);
-  put(10, T(.9), noOD);
-  put(11, T(.9), noCp);
-  put(12, T(.3), gr4);
-  put(13, T(.5), gsb);
-  put(14, T(.5), isb);
-  put(15, T(.6), pls);
-  put(16, T(.6), dpl);
+  put(r, 13, pj ? pj.p : 0, pj ? pj.a : 0, !!pj && pj.p > 0, { pc: pj ? pj.pc : 0 });
+  let dv = 0, dpc = 0;
+  if (DB.sameMonth) { const add = x => { if (x && !x.src && x.a > 0) { dv += x.a; dpc += x.pc || 0; } };
+    if (lvl === 'SE') add(DB.pjpSE[f.se]); else if (lvl === 'ASM') add(DB.pjpASM[f.asm]);
+    else for (const s of DB.ses) if ((!f.zone || s.z === f.zone) && (!f.rsm || rsmOf(s.asm) === f.rsm)) add(DB.pjpSE[s.n]); }
+  put(r, 14, .25, dv > 0 ? dpc / dv : 0, dv > 0, { pc: dpc, v: dv });
+  put(r, 15, 6, hrs || 0, hrs != null, { n: hrsN });
+  // 16 distribution
+  put(r, 16, .8, sp > 0 ? sq / sp : 0, sp > 0, { sq, sp, so, sd });
   let sw = 0, ss = 0, scored = 0;
   for (const k of KPI) { const x = r[k.id]; x.score = x.has && k.w > 0 ? Math.min(x.p, CAP) * k.w : null; if (x.score != null) { sw += k.w; ss += x.score; scored++; } }
   const plan = idx.reduce((s, i) => s + (DB.D.pl[i] || 0), 0);
-  return { k: r, comp: sw ? ss / sw : null, scored, base, mapped: idx.length, billed, totQ, premQ, totV, plan: DB.sameMonth ? plan : 0, mSum };
+  return { k: r, o, comp: sw ? ss / sw : null, scored, off: !!off, base, mapped: idx.length, billed, totQ, premQ, totV, plan: DB.sameMonth ? plan : 0, mSum };
+}
+// All-India billing value per billed dealer on a day (the benchmark for KPI 7)
+function natRev(ds, day) {
+  if (ds.natRev != null) return ds.natRev;
+  const saved = SEED && SEED.meta && SEED.meta.natRev; if (saved && saved[day] != null) return (ds.natRev = saved[day]);   // SE / ASM logins carry the All-India figure in the data pack
+  const D = DB.D; let v = 0, n = 0;
+  for (let i = 0; i < DB.n; i++) if (ds.qty[i] > 0 && D.s[i] !== 'N') { v += ds.val[i]; n++; }
+  return (ds.natRev = n ? v / n : 0);
 }
 
 function scopeCalc(f, day) {
   const key = 'sc' + JSON.stringify(f) + day; if (DB.cache.has(key)) return DB.cache.get(key);
   const idx = idxFor(f); const lvl = level(f);
-  const res = computeKPIs(idx, dayState(day), f, lvl); res.idx = idx; res.lvl = lvl; res.f = f;
+  const res = computeKPIs(idx, dayState(day), f, lvl, day); res.idx = idx; res.lvl = lvl; res.f = f;
   DB.cache.set(key, res); return res;
 }
 
@@ -232,14 +255,14 @@ function board(lvlName, day) {
     for (const s of DB.ses) {
       if (f0.zone && s.z !== f0.zone) continue; if (f0.asm && s.asm !== f0.asm) continue;
       const f = { zone: '', asm: '', se: s.n, st: f0.st, cat: f0.cat };
-      const r = scopeCalc(f, day); if (!r.mapped) continue;
+      const r = scopeCalc(f, day); if (!r.mapped && !r.off) continue;
       rows.push({ name: s.n, asm: s.asm, z: s.z, r });
     }
   } else {
     for (const a of DB.asms) {
       if (f0.zone && a.z !== f0.zone) continue; if (f0.asm && a.n !== f0.asm) continue;
       const f = { zone: '', asm: a.n, se: '', st: f0.st, cat: f0.cat };
-      const r = scopeCalc(f, day); if (!r.mapped) continue;
+      const r = scopeCalc(f, day); if (!r.mapped && !r.off) continue;
       rows.push({ name: a.n, asm: a.n, z: a.z, r });
     }
   }
@@ -290,9 +313,12 @@ function zoneModels(day) {
 }
 
 /* ================= action engine ================= */
+// dealers to list by name: only those in the Dealer master (billing-only codes and dealers outside Dealer_Vol1 are left out of lists)
+const listedDealer = i => !(DB.D.xm && DB.D.xm[i]) && DB.D.s[i] !== 'N';
 function actionsFor(idx, day) {
   const D = DB.D, ds = dayState(day), zm = zoneModels(day), list = [];
   for (const i of idx) {
+    if (!listedDealer(i)) continue;
     const A = D.s[i] === 'A'; const q = ds.qty[i]; const o = DB.ord.get(i); const zone = zm.get(D.z[i]) || { all: [], npd: [], prem: [] };
     const rs = []; let sc = 0;
     if (A && q <= 0) {
@@ -321,18 +347,18 @@ const RK_LABEL = { bp: 'Bill', ord: 'Order', npd: 'NPD', mbd: 'Range', prem: 'Pr
 
 /* ================= insight engine ================= */
 function insightsFor(f, day) {
-  const r = scopeCalc(f, day), K = r.k, out = [];
+  const r = scopeCalc(f, day), K = r.o, KN = r.k, out = [];
   const wdLeft = DB.wdTotal - DB.wd[day], wdGone = DB.wd[day], share = wdGone / DB.wdTotal;
   const dateTxt = dLabel(day);
   const name = scopeName(f);
   const rk = rankOf(f, day);
   // 1 composite
   if (r.comp != null) {
-    const below = KPI.filter(k => k.w > 0 && K[k.id].has && K[k.id].p < .5).length;
+    const below = KPI.filter(k => k.w > 0 && KN[k.id].has && KN[k.id].p < .5).length;
     out.push({ sev: scoreBand(r.comp).k === 'good' ? 'good' : scoreBand(r.comp).k === 'warn' ? 'warn' : scoreBand(r.comp).k === 'serious' ? 'serious' : 'crit', kpi: 0,
       h: `Composite score ${Math.round(r.comp * 100)} of 100${rk ? ` — rank ${rk.rank} of ${rk.of} ${rk.peers}` : ''}`,
-      p: `${r.scored} of 10 scored KPIs have data for ${MON[DB.m - 1]}; ${plural(below, 'KPI')} ${below === 1 ? 'is' : 'are'} below 50% of target.`,
-      a: below ? 'Work the score-gap list on the right from the top; each fully closed KPI adds up to 10 points.' : 'Hold the pace and push the lowest KPI over its target.' });
+      p: `${r.scored} of 16 KPIs have data for ${MON[DB.m - 1]}; ${plural(below, 'KPI')} ${below === 1 ? 'is' : 'are'} below 50% of target.`,
+      a: below ? 'Work the score-gap list on the right from the top; each fully closed KPI adds up to its weight in points.' : 'Hold the pace and push the lowest KPI over its target.' });
   }
   // 2 volume vs plan
   if (r.plan > 0) {
@@ -344,7 +370,7 @@ function insightsFor(f, day) {
       a: ach >= share ? 'On pace — protect it by converting open orders first.' : `Close ${fN(Math.max(0, r.plan - r.totQ))} units: bill open orders, then unbilled active dealers with Jul–Sep history.` });
   }
   // 3 billing points
-  const k1 = K[1];
+  const k1 = KN[6];
   if (k1.has) {
     const gap = Math.max(0, k1.t - k1.a); const acts = actionsFor(r.idx, day);
     const unb = acts.filter(x => x.rs[0].k === 'bp'); const unbHist = unb.filter(x => x.l3 > 0); const potential = unbHist.reduce((s, x) => s + x.l3, 0);
@@ -371,32 +397,21 @@ function insightsFor(f, day) {
       p: `${plural(below, 'billed dealer')} sit below their own MBD target — ${fN(need)} model additions in total would close it.`,
       a: 'Use the zone’s best-selling models the dealer has not taken (listed per dealer in the Action plan).' });
   }
-  // 6 premium
-  const k8 = K[8], k9 = K[9];
-  if (k9.has) {
-    const needU = Math.max(0, Math.ceil(.06 * r.totQ - r.premQ));
-    out.push({ sev: band(k9.p).k, kpi: 9, h: `Premium share ${fP1(k9.a)} vs 6% target; ${fN(k8.a)} of ${fN(k8.t)} target dealers billed premium`,
-      p: needU ? `At today’s volume, ${fN(needU)} more premium units would reach 6%. ${plural(Math.max(0, r.billed - k8.a), 'billed dealer')} took no premium model.` : 'Premium mix is at or above target.',
-      a: needU ? 'Pitch the zone’s top premium models at dealers with MTD billing above 20 units.' : 'Hold the mix; widen premium to more counters for KPI 8.' });
-  }
-  // 7 PJP
-  const k2 = K[2];
-  if (k2.has) {
-    const prod = k2.a ? k2.pc / k2.a : null;
-    out.push({ sev: band(k2.p).k === 'good' && prod != null && prod < .2 ? 'warn' : band(k2.p).k, kpi: 2, h: `PJP adherence ${fP(k2.p)} (${fN(k2.a)} of ${fN(k2.t)} planned visits)`,
-      p: prod != null ? `Only ${fP(prod)} of visits were productive (order booked). Source covers W1–W2 (to 15-Oct).` : 'Source covers W1–W2 (to 15-Oct).',
-      a: prod != null && prod < .25 ? 'Plan visits around dealers with open gaps (Action plan) so each visit ends in an order.' : 'Keep visit discipline; update the Journey Plan for W3–W4.' });
+  // 6 field: DJP adherence and productive calls (KPIs 13–14)
+  const k13 = KN[13], k14 = KN[14];
+  if (k13.has) {
+    const prod = k14.has ? k14.a : null;
+    out.push({ sev: band(k13.p).k === 'good' && prod != null && prod < .15 ? 'warn' : band(k13.p).k, kpi: 13, h: `DJP adherence ${fP(k13.p)} (${fN(k13.a)} of ${fN(k13.t)} planned visits)`,
+      p: prod != null ? `${fP(prod)} of visits were productive (order booked) vs the 25% target. Source: MTD DJP SUMMARY.` : 'Source: MTD DJP SUMMARY.',
+      a: prod != null && prod < .25 ? 'Plan visits around dealers with open gaps (Action plan) so each visit ends in an order.' : 'Keep visit discipline and keep the DJP updated.' });
   } else if (DB.sameMonth) {
-    out.push({ sev: 'info', kpi: 2, h: 'No PJP record for this scope', p: 'The Journey Plan Update has no planned visits for this person in October (W1–W2).', a: 'Ask the SE/ASM to upload the October PJP so KPI 2 scores.' });
+    out.push({ sev: 'info', kpi: 13, h: 'No DJP record for this scope', p: `The MTD DJP SUMMARY has no ${curMonF()} row for this scope.`, a: `Ask the SE/ASM to update the ${curMonF()} DJP so KPIs 13–14 score.` });
   }
-  // 8 sub-dealers
-  const k3 = K[3];
-  if (k3.has) {
-    const g = k3.lm ? (k3.a - k3.lm) / k3.lm : null;
-    out.push({ sev: band(k3.p).k, kpi: 3, h: `Sub-dealer billing points ${fN(k3.a)} of ${fN(k3.t)} (${fP(k3.p)})`,
-      p: `${plural(k3.nd, 'distributor')}, ${fN(k3.mapped)} mapped sub-dealers.${g != null ? ` Versus the same days of September: ${g >= 0 ? '+' : ''}${fP(g)}.` : ''}`,
-      a: 'Review the weakest distributors’ beat plans; target sub-dealers billed in September but not yet in October.' });
-  }
+  // 7 orders: cancellation and conversion (KPIs 4–5)
+  const k4 = KN[4], k5c = KN[5];
+  if (k4.has) out.push({ sev: band(Math.min(k4.p, k5c.has ? k5c.p : 9)).k, kpi: 4, h: `Orders billed ${fP(k4.a)}${k5c.has ? `, cancelled ${fP1(k5c.a)}` : ''}`,
+    p: `${k4.open ? fN(k4.open) + ' units of open orders (CM+LM) still to bill. ' : ''}Targets: 85% conversion, cancellation 10% or less.`,
+    a: 'Chase open orders with the depot daily; offer in-stock alternates instead of cancelling.' });
   // 9 orders & stock
   const mask = new Set(r.idx); let open = 0, rej = 0, openD = 0;
   for (const i of r.idx) { const o = DB.ord.get(i); if (o) { open += o.open; rej += o.rej; if (o.open > 0) openD++; } }
@@ -415,23 +430,23 @@ function insightsFor(f, day) {
         p: `Week to ${dateTxt} vs the week before.`, a: g >= 0 ? 'Momentum is with you — keep the dispatch cadence.' : 'Check whether the drop is supply (rejections) or demand (fewer orders) before the next review.' });
     }
   }
-  // 11 OD
+  // 11 OD (removed from the 16 KPIs)
   const k10 = K[10];
-  if (k10.has && k10.a < r.base) {
+  if (false) {
     let odAmt = 0; for (const i of r.idx) if (DB.D.s[i] === 'A') odAmt += DB.D.od[i];
     out.push({ sev: band(k10.p).k, kpi: 10, h: `${plural(r.base - k10.a, 'active dealer')} carry overdue above ₹10k (${inr(odAmt)})`,
       p: `OD snapshot dated ${DB.meta.odSnap.split('-').reverse().join('-')} — refresh before acting on individual dealers.`, a: 'Tie dispatch release to OD clearance for these dealers.' });
   }
   // 12 peer spread
   if (!f.se) {
-    const rows = board('SE', day).filter(x => (!f.asm || x.asm === f.asm) && (!f.zone || x.z === f.zone) && x.r.k[1].has && x.r.base >= 5);
+    const rows = board('SE', day).filter(x => (!f.asm || x.asm === f.asm) && (!f.zone || x.z === f.zone) && x.r.k[6].has && x.r.base >= 5);
     if (rows.length >= 3) {
-      const gapOf = x => Math.max(0, x.r.k[1].t - x.r.k[1].a);
+      const gapOf = x => Math.max(0, x.r.k[6].t - x.r.k[6].a);
       const byGap = rows.slice().sort((a, b) => gapOf(b) - gapOf(a)); const lo = byGap.slice(0, 3).filter(x => gapOf(x) > 0);
-      const hi = rows.slice().sort((a, b) => b.r.k[1].p - a.r.k[1].p)[0];
+      const hi = rows.slice().sort((a, b) => b.r.k[6].p - a.r.k[6].p)[0];
       const short = lo.reduce((s, x) => s + gapOf(x), 0); const tot = rows.reduce((s, x) => s + gapOf(x), 0);
       if (lo.length) out.push({ sev: 'info', kpi: 1, h: `Largest billing-point gaps: ${lo.map(x => `${x.name} (−${gapOf(x)})`).join(', ')}`,
-        p: `These ${lo.length} SEs hold ${fN(short)} of the ${fN(tot)} dealers this scope is short (${fP(tot ? short / tot : null)}). Best in this scope: ${hi.name} at ${fP(hi.r.k[1].p)} of target.`, a: 'Review these SEs’ unbilled dealer lists with them before the next market day.' });
+        p: `These ${lo.length} SEs hold ${fN(short)} of the ${fN(tot)} dealers this scope is short (${fP(tot ? short / tot : null)}). Best in this scope: ${hi.name} at ${fP(hi.r.k[6].p)} of target.`, a: 'Review these SEs’ unbilled dealer lists with them before the next market day.' });
     }
   }
   const order = { crit: 0, serious: 1, warn: 2, info: 3, good: 4, nd: 5 };
@@ -495,7 +510,7 @@ function renderOverview() {
   $('#scoreCard').innerHTML = `<div class="ring">${ringSVG(r.comp, sb.k)}<div class="val"><div><b class="num">${r.comp == null ? '–' : Math.round(r.comp * 100)}</b><span>of 100</span></div></div></div>
     <div style="min-width:0"><div class="eyebrow">${lvl} scorecard</div><h2>${esc(scopeName(f))}</h2>
     <div class="meta-line">${asmOf ? 'ASM ' + esc(asmOf) + ' · ' : ''}${fN(r.base)} active of ${fN(r.mapped)} mapped dealers</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px"><span class="pill s-${sb.k}">${sb.l}</span>${rk ? `<span class="tag">Rank ${rk.rank}/${rk.of} · ${esc(rk.peers)}</span>` : ''}<span class="tag">${r.scored}/10 KPIs scored</span></div></div>`;
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px"><span class="pill s-${sb.k}">${sb.l}</span>${rk ? `<span class="tag">Rank ${rk.rank}/${rk.of} · ${esc(rk.peers)}</span>` : ''}<span class="tag">${r.scored}/16 KPIs scored</span></div></div>`;
   // volume card
   const wdGone = DB.wd[day], wdLeft = DB.wdTotal - wdGone, share = wdGone / DB.wdTotal;
   if (r.plan > 0) {
@@ -508,7 +523,7 @@ function renderOverview() {
     $('#volCard').innerHTML = `<div class="eyebrow">Volume MTD</div><div class="big num">${fN(r.totQ)}<small>units</small></div><div class="kv"><span>Value</span><b>${inr(r.totV)}</b></div><div class="kv"><span>Plan</span><span class="muted">No ${MON[DB.m - 1]} plan in data</span></div>`;
   }
   // BP card
-  const k1 = K[1]; const bpNeed = wdLeft > 0 ? Math.max(0, k1.t - k1.a) / wdLeft : 0;
+  const k1 = K[6]; const bpNeed = wdLeft > 0 ? Math.max(0, k1.t - k1.a) / wdLeft : 0;
   $('#bpCard').innerHTML = `<div class="eyebrow">Billing points</div><div class="big num">${fN(k1.a)}<small>/ ${fN(k1.t)}</small></div>
     <div class="meter"><i style="width:${Math.min(100, (k1.p || 0) * 100)}%;background:${HEATC[band(k1.p).k]}"></i><u style="left:${share * 100}%"></u></div>
     <div class="kv"><span>${fP(k1.p)} of target</span><span class="pill s-${band(k1.p).k}">${band(k1.p).l}</span></div>
@@ -533,88 +548,164 @@ function renderOverview() {
   // tiles
   const prevDay = Math.max(1, day - 1); const rPrev = day > 1 ? scopeCalc(f, prevDay) : null;
   const one = tileNotes(r, day);
-  $('#tileGroups').innerHTML = `<div class="grp-h"><h3>The 16 KPIs</h3><span class="muted small">1–10 scored at 10% each · 11–16 tracked, not in the composite</span></div>
+  $('#tileGroups').innerHTML = `<div class="grp-h"><h3>The 16 KPIs</h3><span class="muted small">All from the daily sheets · weights: sales &amp; orders 35, dealer coverage 30, growth 15, field 15, distribution 5</span></div>
     <div class="tiles">${KPI.map(k => tileHTML(k, K[k.id], rPrev ? rPrev.k[k.id] : null, one[k.id])).join('')}</div>`;
+  if (typeof kqSync === 'function') kqSync();
 }
-function srcTag(k) {
-  const m = { live: [`Live · ${dLabel(ST.day).slice(4)}`, 'live'], pjp: ['PJP to 15-Oct', ''], sub: ['Distributor MIS · 25-Oct', ''], mis: ['MIS Sep-26 YTD', ''], od: ['OD snapshot ' + DB.meta.odSnap.slice(5).split('-').reverse().join('-'), ''], snap: ['Snapshot · Sep-26', ''] }[k.src];
-  return `<span class="tag ${m[1]}">${m[0]}</span>`;
-}
-function fmtKV(k, v) { return k.ratio ? fP1(v) : k.avg ? f1(v) : fN(v); }
+const SRC = { dash: ['Dashboard SE/ASM', 'live', 'Dashboard SE / Dashboard ASM (daily)'], live: ['Billing', 'live', 'Billing sheet (daily)'], mis: ['Dealer_Val1', '', 'Dealer_Val1 growth flags (daily refresh)'],
+  djp: ['MTD DJP', '', 'MTD DJP SUMMARY (daily)'], field: ['Check-in', '', 'Check In Check out export (daily)'], sec: ['Secondary', '', 'Secondary invoice export + Billing (daily)'], hist: ['Month history', '', 'Month-wise history (Dealer_Vol1 / Val1 / MBD1, MTD DJP SUMMARY)'] };
+function srcTag(k) { const m = SRC[k.src] || [k.src, '']; return `<span class="tag ${m[1]}">${m[0]}</span>`; }
+function fmtKV(k, v) { return v == null ? 'NA' : k.ratio ? fP1(v) : k.inr ? inr(v) : k.id === 15 ? f1(v) + ' h' : k.avg ? f1(v) : fN(v); }
+const wLbl = k => (Math.round(k.w * 1000) / 10) + '%';
 function tileHTML(k, x, prev, note) {
   const b = band(x.p);
   let delta = '';
   if (prev && k.src === 'live' && x.has && prev.has) {
     const dlt = x.a - prev.a;
-    if (k.ratio) { if (Math.abs(dlt) >= .0005) delta = `${dlt > 0 ? '+' : ''}${(dlt * 100).toFixed(1)} pp vs prev day`; }
+    if (k.inr) { if (Math.abs(dlt) >= 1) delta = `${dlt > 0 ? '+' : '−'}${inr(Math.abs(dlt))} vs prev day`; }
+    else if (k.ratio) { if (Math.abs(dlt) >= .0005) delta = `${dlt > 0 ? '+' : ''}${(dlt * 100).toFixed(1)} pp vs prev day`; }
     else if (k.avg) { if (Math.abs(dlt) >= .05) delta = `${dlt > 0 ? '+' : ''}${f1(dlt)} vs prev day`; }
     else if (dlt) delta = `${dlt > 0 ? '+' : ''}${fN(dlt)} vs prev day`;
   }
-  return `<div class="card tile b-${b.k}${x.has ? '' : ' nodata'}">
+  const tg = !x.has ? 'no data' : x.met ? 'target reached' : k.lower ? 'max ' + fmtKV(k, x.t) : k.id === 7 ? 'All-India ' + fmtKV(k, x.t) : '/ ' + fmtKV(k, x.t) + ' target';
+  return `<div class="card tile b-${b.k}${x.has ? '' : ' nodata'}" data-kpi="${k.id}">
     <div class="top"><div style="min-width:0"><div class="eyebrow" style="margin-bottom:2px">${esc(k.grp)}</div><h4><span class="kid">${String(k.id).padStart(2, '0')}</span>${esc(k.name)}</h4></div><span class="pill s-${b.k}">${b.l}</span></div>
-    <div class="fig"><b class="num">${x.has ? fmtKV(k, x.a) : '–'}</b><span>${x.has ? '/ ' + fmtKV(k, x.t) + ' target' : 'no data'}</span><span class="pc num">${x.has ? fP(x.p) : ''}</span></div>
+    <div class="fig"><b class="num">${x.has ? fmtKV(k, x.a) : 'NA'}</b><span>${tg}</span><span class="pc num">${x.has ? fP(x.p) : ''}</span></div>
     <div class="meter" aria-hidden="true"><i style="width:${x.has ? Math.min(100, x.p * 100) : 0}%;background:${HEATC[b.k]}"></i></div>
     <div class="one">${esc(note || '')}</div>
-    <div class="foot">${srcTag(k)}<span class="wt">${k.w ? 'Weight 10%' : 'Tracked'}</span>${delta ? `<span class="delta" style="color:${delta.startsWith('-') ? 'var(--crit)' : 'var(--good)'}">${delta}</span>` : ''}</div></div>`;
+    <div class="foot">${srcTag(k)}<span class="wt">Weight ${wLbl(k)}</span>${delta ? `<span class="delta" style="color:${delta.startsWith('-') || delta.startsWith('−') ? 'var(--crit)' : 'var(--good)'}">${delta}</span>` : ''}</div></div>`;
 }
 function tileNotes(r, day) {
-  const K = r.k, D = DB.D, ds = dayState(day), n = {};
-  const wdLeft = DB.wdTotal - DB.wd[day];
-  let unbA = 0, unbH = 0, mbdB = 0, noNpd = 0, noPrem = 0, od = 0, cp = 0, noG = 0, noI = 0;
+  const K = r.k, D = DB.D, ds = dayState(day), n = {}, off = officialOf(r.f || {}, day);
+  const daysLeft = off ? off.daysLeft : DB.wdTotal - DB.wd[day];
+  let unbA = 0, unbH = 0, mbdB = 0, noNpd = 0, dormUnb = 0, vgNo = 0, agNo = 0;
   for (const i of r.idx) {
     const A = D.s[i] === 'A', q = ds.qty[i];
     if (A && q <= 0) { unbA++; if (D.l3[i] > 0) unbH++; }
-    if (q > 0) { if (ds.mc[i] < D.mt[i]) mbdB++; if (ds.nq[i] <= 0) noNpd++; if (ds.pq[i] <= 0) noPrem++; }
-    if (A) { if (D.od[i] > 0) od++; if (D.cp[i] > 0) cp++; if (!D.gsb[i]) noG++; if (!D.isb[i]) noI++; }
+    if (q > 0) { if (ds.mc[i] < D.mt[i]) mbdB++; if (ds.nq[i] <= 0) noNpd++; }
+    if ((A || D.s[i] === 'I') && !(D.l3[i] > 0) && q <= 0) dormUnb++;
+    if (A && D.vg[i] === 0) vgNo++; if (D.ag[i] === 0) agNo++;
   }
-  const gap = id => Math.max(0, K[id].t - K[id].a);
-  n[1] = gap(1) ? `${plural(gap(1), 'dealer')} short — ${f1(wdLeft ? gap(1) / wdLeft : gap(1))}/day. ${unbH} of ${unbA} unbilled active dealers bought in Jul–Sep.` : `Target met. ${unbA} active dealers still unbilled.`;
-  n[2] = K[2].has ? `${fN(K[2].pc)} productive calls = ${fP(K[2].a ? K[2].pc / K[2].a : null)} of visits. W1–W2 only.` : 'No October PJP record for this scope.';
-  n[3] = K[3].has ? `${plural(K[3].nd, 'distributor')} · same period Sep: ${fN(K[3].lm)} (${K[3].lm ? ((K[3].a - K[3].lm) / K[3].lm >= 0 ? '+' : '') + fP((K[3].a - K[3].lm) / K[3].lm) : '–'}).` : 'No distributor in the October distributor MIS for this scope.';
-  n[4] = K[4].has ? `${plural(gap(4), 'dealer')} to convert. YTD value vs FY23-24 same months (MIS to Sep).` : 'No MIS history for these dealers.';
-  n[5] = `${plural(noNpd, 'billed dealer')} without NPD — quickest wins.`;
-  n[6] = `${plural(mbdB, 'billed dealer')} below their own model target.`;
-  n[7] = K[7].has ? `${plural(gap(7), 'dealer')} to lift ASP above the FY23-24 base.` : 'No MIS ASP history for these dealers.';
-  n[8] = `${plural(noPrem, 'billed dealer')} took no premium model.`;
-  n[9] = K[9].has ? (K[9].a < .06 ? `${fN(Math.max(0, Math.ceil(.06 * r.totQ - r.premQ)))} more premium units reach 6% at today’s volume.` : 'At or above the 6% mix.') : 'No billing yet.';
-  n[10] = `${plural(od, 'active dealer')} with overdue above ₹10k.`;
-  n[11] = `${plural(cp, 'active dealer')} with an open complaint.`;
-  n[12] = `${plural(gap(12), 'more dealer')} rated above 4.0 needed.`;
-  n[13] = `${plural(noG, 'active dealer')} without a glow sign board.`;
-  n[14] = `${plural(noI, 'active dealer')} without in-shop branding.`;
-  n[15] = 'Annual FY measure — moves with district share, not daily sales.';
-  n[16] = 'Annual FY measure — moves with district dealer density.';
+  const gap = id => Math.max(0, Math.ceil(K[id].t - K[id].a)), nd = 'Not in the Dashboard SE / ASM sheet for this scope (or an earlier day / state filter is on).';
+  n[1] = K[1].has ? (gap(1) ? `${fN(gap(1))} units of orders behind the MTD plan. Month target ${fN(off.target)}.` : `Ahead of the MTD order plan by ${fN(K[1].a - K[1].t)} units.`) : nd;
+  n[2] = K[2].has ? (gap(2) ? `${fN(gap(2))} units behind today’s pro-rata billing target.` : 'Billing is ahead of the pro-rata target.') + (off ? ` Billed ${fN(off.billVol)} of ${fN(off.target)}.` : '') : nd;
+  n[3] = K[3].has ? (K[3].met ? 'Month target already reached.' : `Billing ${fN(K[3].a)}/day now; ${fN(K[3].t)}/day needed for the ${plural(daysLeft, 'day')} left.`) : nd;
+  n[4] = K[4].has ? `${K[4].open ? fN(K[4].open) + ' units of open orders (CM+LM) to convert.' : 'No open orders.'}` : nd;
+  n[5] = K[5].has ? `${fN(K[5].n)} units cancelled this month.` : nd;
+  n[6] = K[6].has ? (gap(6) ? `${plural(gap(6), 'dealer')} short — ${f1(daysLeft ? gap(6) / daysLeft : gap(6))}/day. ${unbH} of ${unbA} unbilled active dealers bought in the last 3 months.` : `Target met. ${unbA} active dealers still unbilled.`) : 'No dealers mapped to this scope.';
+  n[7] = K[7].has ? `${inr(K[7].totV)} billed across ${plural(K[7].billed, 'dealer')}. ${K[7].a >= K[7].t ? 'Above' : 'Below'} the All-India average per dealer.` : 'No billing yet.';
+  n[8] = K[8].has ? `${plural(mbdB, 'billed dealer')} below their own model target.` : 'No MBD target for this scope.';
+  n[9] = K[9].has ? `${fN(K[9].a)} won back of ${fN(K[9].dorm)} dormant; ${plural(dormUnb, 'dormant dealer')} still to bill.` : 'No dormant dealers in this scope.';
+  n[10] = K[10].has ? `${plural(gap(10), 'dealer')} to convert; ${plural(vgNo, 'active dealer')} below last year’s value.` : 'No Dealer_Val1 growth flags for these dealers.';
+  n[11] = K[11].has ? `${plural(gap(11), 'dealer')} to lift; ${plural(agNo, 'dealer')} below last year’s ASP.` : 'No Dealer_Val1 ASP flags for these dealers.';
+  n[12] = `${plural(noNpd, 'billed dealer')} without NPD — quickest wins.`;
+  n[13] = K[13].has ? `${fN(K[13].a)} of ${fN(K[13].t)} planned visits made, month to date.` : `No ${curMonF()} DJP record for this scope.`;
+  n[14] = K[14].has ? `${fN(K[14].pc)} productive calls from ${fN(K[14].v)} visits.` : `No ${curMonF()} DJP record for this scope.`;
+  n[15] = K[15].has ? (K[15].n > 1 ? `Average of ${K[15].n} SEs with check-in data.` : 'First check-in to last check-out, average per working day.') : 'No check-in data for this scope.';
+  n[16] = K[16].has ? `${plural(K[16].sd, 'distributor')} sold ${fN(K[16].sq)} units to ${plural(K[16].so, 'outlet')}; ${fN(K[16].sp)} units billed to them (or their usual month, pro-rata).` : 'No distributor of this scope in the Secondary sheet this month.';
+  return n;
+}
+
+/* ---------- month filter on the 16-KPI Scorecard: past months come from the month-wise history saved with each upload ----------
+   History keeps, per SE / ASM / zone and month: dealers, active dealers, units, value, dealers billed, models per dealer, DJP planned / made.
+   So a past month scores KPIs 6 (billing points), 7 (revenue per dealer), 8 (MBD) and 13 (DJP); the others need daily sheets kept for the current month only. */
+const lbMonths = () => Object.keys((SEED && SEED.history && SEED.history.months) || {}).filter(ym => ym <= DB.month).sort().reverse();
+const isPastMon = () => !!ST.lbMon && ST.lbMon !== DB.month;
+function monLabel(ym) {
+  const [y, m] = ym.split('-').map(Number), h = (SEED.history.months || {})[ym];
+  return `${MONF[m - 1]} ${y}` + (ym === DB.month ? ` · to ${dLabel(ST.day).slice(4)}` : h && !h.closed ? ` · to ${+h.asOf.slice(8)} ${MON[m - 1]}` : '');
+}
+const HIST_KPI = new Set([6, 7, 8, 13]);
+function histKPIs(x, nat, mt) {
+  const k = {}; for (const K of KPI) k[K.id] = { id: K.id, t: 0, a: null, p: null, has: false };
+  const put = (id, t, a, has) => { k[id] = { id, t, a, p: has && t > 0 ? a / t : null, has: !!has && t > 0 }; };
+  put(6, Math.round((x.a || 0) * .9), x.bp || 0, x.a > 0);
+  put(7, nat, x.bp ? (x.v || 0) / x.bp : 0, x.bp > 0 && nat > 0);
+  put(8, mt || 0, x.md || 0, x.md != null && mt > 0);
+  put(13, x.pp || 0, x.pa || 0, x.pp > 0);
+  let sw = 0, ss = 0, sc = 0;
+  for (const K of KPI) { const y = k[K.id]; y.score = y.has ? Math.min(y.p, CAP) * K.w : null; if (y.score != null) { sw += K.w; ss += y.score; sc++; } }
+  return { k, o: {}, comp: sw ? ss / sw : null, scored: sc, base: x.a || 0, mapped: x.d || 0, totQ: x.u || 0, totV: x.v || 0, plan: 0, billed: x.bp || 0, hist: x };
+}
+// average dealer MBD target of a person's dealers (Dealer-MBD1), the MBD target used for past months
+function mtOf(lvl, n) {
+  const key = 'mt' + lvl + n; if (DB.cache.has(key)) return DB.cache.get(key);
+  let s = 0, c = 0; for (const i of idxFor(lvl === 'SE' ? { se: n } : { asm: n })) if (DB.D.mt[i] != null && DB.D.s[i] !== 'N') { s += DB.D.mt[i]; c++; }
+  const v = c ? s / c : 0; DB.cache.set(key, v); return v;
+}
+function boardMonth(lvl, ym) {
+  const f0 = curF(), H = SEED.history.months, h = H[ym] || {}, key = 'lbm' + lvl + ym + JSON.stringify([f0.rsm, f0.zone, f0.asm]);
+  if (DB.cache.has(key)) return DB.cache.get(key);
+  let V = 0, B = 0; for (const x of Object.values(h.Z || {})) { V += x.v || 0; B += x.bp || 0; }
+  const nat = B ? V / B : 0, prevYm = Object.keys(H).sort().filter(m => m < ym).pop(), prev = prevYm ? H[prevYm][lvl] || {} : {};
+  const rows = [];
+  for (const [n, x] of Object.entries(h[lvl] || {})) {
+    const asm = lvl === 'SE' ? x.asm : n;
+    if (f0.zone && x.z !== f0.zone) continue; if (f0.asm && asm !== f0.asm) continue; if (f0.rsm && rsmOf(asm) !== f0.rsm) continue;
+    const r = histKPIs(x, nat, mtOf(lvl, n)); r.prevU = prev[n] ? prev[n].u : null; r.prevYm = prevYm;
+    rows.push({ name: n, asm, z: x.z, r });
+  }
+  rows.filter(x => x.r.comp != null).sort((a, b) => b.r.comp - a.r.comp).forEach((x, i) => x.rank = i + 1);
+  DB.cache.set(key, rows); return rows;
+}
+const lbBoard = lvl => isPastMon() ? boardMonth(lvl, ST.lbMon) : board(lvl, ST.day);
+function histNotes(r) {
+  const x = r.hist, n = {}, na = 'Not kept for past months: this KPI needs the daily Dashboard / DJP / check-in / secondary sheets of that month.';
+  for (const K of KPI) n[K.id] = na;
+  n[6] = `${fN(x.bp)} of ${fN(x.a)} active dealers billed in the month (${fN(x.d)} mapped).`;
+  n[7] = x.bp ? `${inr(x.v)} billed across ${plural(x.bp, 'dealer')}; target = All-India average that month.` : 'No billing that month.';
+  n[8] = x.md != null ? `${f1(x.md)} models per billed dealer (Dealer-MBD1).` : 'No MBD data that month.';
+  n[13] = x.pp ? `${fN(x.pa)} of ${fN(x.pp)} planned DJP visits made (MTD DJP SUMMARY).` : 'No DJP block for that month.';
   return n;
 }
 
 /* ---------- leaderboard ---------- */
 function renderLeaderboard() {
-  const rows = board(ST.lb, ST.day).slice();
+  const ms = lbMonths(); if (ST.lbMon && !ms.includes(ST.lbMon)) ST.lbMon = '';
+  const sel = $('#lbMon'); if (sel) { sel.innerHTML = ms.map(ym => `<option value="${ym}"${(ST.lbMon || DB.month) === ym ? ' selected' : ''}>${esc(monLabel(ym))}</option>`).join(''); sel.onchange = () => { navPush(); ST.lbMon = sel.value === DB.month ? '' : sel.value; renderLeaderboard(); }; }
+  const past = isPastMon();
+  const all = lbBoard(ST.lb).slice(), q = (ST.lbQ || '').trim().toLowerCase();
+  const rows = q ? all.filter(x => [x.name, x.asm, x.z, rsmOf(x.asm || x.name)].join(' ').toLowerCase().includes(q)) : all;
+  if ($('#lbQn')) $('#lbQn').textContent = q ? `${rows.length} of ${all.length} match` : '';
   const { k: sk, dir } = ST.lbSort;
-  const val = x => sk === 'score' ? (x.r.comp == null ? -1 : x.r.comp) : sk === 'name' ? x.name : sk === 'base' ? x.r.base : sk === 'vol' ? (x.r.plan ? x.r.totQ / x.r.plan : -1) : (x.r.k[sk].has ? x.r.k[sk].p : -1);
+  const mom = x => x.r.prevU ? x.r.totQ / x.r.prevU - 1 : null;
+  const val = x => sk === 'score' ? (x.r.comp == null ? -1 : x.r.comp) : sk === 'name' ? x.name : sk === 'base' ? x.r.base : sk === 'vol' ? (x.r.plan ? x.r.totQ / x.r.plan : -1) : sk === 'u' ? x.r.totQ : sk === 'v' ? x.r.totV : sk === 'mom' ? (mom(x) ?? -9) : (x.r.k[sk] && x.r.k[sk].has ? x.r.k[sk].p : -1);
   rows.sort((a, b) => { const va = val(a), vb = val(b); return (va < vb ? -1 : va > vb ? 1 : 0) * dir; });
-  $('#lbTitle').textContent = (ST.lb === 'SE' ? 'SE' : 'ASM') + ' leaderboard';
+  $('#lbTitle').textContent = (ST.lb === 'SE' ? 'SE' : 'ASM') + ' leaderboard · ' + monLabel(ST.lbMon || DB.month).split(' · ')[0];
   $$('[data-lb]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lb === ST.lb)));
-  $('#lbNote').textContent = `${rows.length} ${ST.lb === 'SE' ? 'SEs' : 'ASMs'} · as of ${dLabel(ST.day)} · composite = weighted Ach % of KPIs 1–10 (capped at ${CAP * 100}%), re-weighted over KPIs with data. Cells show Ach % vs target.`;
+  $('#lbNote').textContent = past ? `${rows.length} ${ST.lb === 'SE' ? 'SEs' : 'ASMs'} · ${monLabel(ST.lbMon)} (closed month, from the month-wise history) · scored on KPIs 6 billing points, 7 revenue per dealer, 8 MBD and 13 DJP; the other KPIs need daily sheets kept for the current month only (NA). Units, value and change vs ${rows[0] && rows[0].r.prevYm ? monLabel(rows[0].r.prevYm).split(' · ')[0] : 'the month before'} shown for context.` : `${rows.length} ${ST.lb === 'SE' ? 'SEs' : 'ASMs'} · as of ${dLabel(ST.day)} · score = weighted Ach % of the 16 KPIs (each capped at ${CAP * 100}%), re-weighted over KPIs with data. Cells show Ach % vs target; NA = no data.`;
   const arrow = k => ST.lbSort.k === k ? (ST.lbSort.dir < 0 ? ' ↓' : ' ↑') : '';
-  const lbPlan = rows.some(x => x.r.plan > 0);   // “Vol vs plan” only when a dealer volume plan is loaded
-  const head = `<thead><tr><th class="r">#</th><th class="sticky-col sortable" data-s="name">${ST.lb}${arrow('name')}</th>${ST.lb === 'SE' ? '<th>ASM</th>' : ''}<th>Zone</th><th class="r sortable" data-s="base">Active${arrow('base')}</th><th class="c sortable" data-s="score">Score${arrow('score')}</th>${lbPlan ? `<th class="c sortable" data-s="vol">Vol vs plan${arrow('vol')}</th>` : ''}
-    ${KPI.map(k => `<th class="c sortable" data-s="${k.id}" title="${esc(k.name)}">${k.id}${arrow(String(k.id)) || arrow(k.id)}<br><span style="font-weight:500;text-transform:none;letter-spacing:0">${esc(k.short.split(' ')[0])}</span></th>`).join('')}</tr></thead>`;
+  const lbPlan = !past && rows.some(x => x.r.plan > 0);   // “Vol vs plan” only when a dealer volume plan is loaded
+  const head = `<thead><tr><th class="r">#</th><th class="sticky-col sortable" data-s="name">${ST.lb}${arrow('name')}</th>${ST.lb === 'SE' ? '<th>ASM</th>' : ''}<th>Zone</th><th class="r sortable" data-s="base">Active${arrow('base')}</th><th class="c sortable" data-s="score">Score${arrow('score')}</th>${lbPlan ? `<th class="c sortable" data-s="vol">Vol vs plan${arrow('vol')}</th>` : ''}${past ? `<th class="r sortable" data-s="u">Units${arrow('u')}</th><th class="r sortable" data-s="v">Value${arrow('v')}</th><th class="c sortable" data-s="mom">vs prev month${arrow('mom')}</th>` : ''}
+    ${KPI.map(k => `<th class="c sortable" data-s="${k.id}" title="${esc(k.name)}">${k.id}${arrow(String(k.id)) || arrow(k.id)}<br><span style="font-weight:500;text-transform:none;letter-spacing:0">${esc(k.col || k.short.split(' ')[0])}</span></th>`).join('')}</tr></thead>`;
   const cell = (p, has) => { const b = band(has ? p : null); return `<td class="c"><span class="heat" style="background:${HEAT[b.k]};color:${b.k === 'nd' ? 'var(--ink-3)' : 'var(--ink)'}"${has ? '' : ' title="No data for this KPI (e.g. no sub-dealers)"'}>${has ? fP(p) : 'NA'}</span></td>`; };
   const body = rows.map(x => {
     const sb = scoreBand(x.r.comp); const vp = x.r.plan ? x.r.totQ / x.r.plan : null;
     return `<tr class="click" data-name="${esc(x.name)}"><td class="r num muted">${x.rank || '–'}</td><td class="sticky-col"><b>${esc(x.name)}</b></td>${ST.lb === 'SE' ? `<td>${esc(x.asm)}</td>` : ''}<td>${esc(x.z)}</td><td class="r num">${fN(x.r.base)}</td>
-      <td class="c"><span class="heat" style="background:${HEAT[sb.k]};color:var(--ink)">${x.r.comp == null ? 'NA' : Math.round(x.r.comp * 100)}</span></td>${lbPlan ? cell(vp, vp != null) : ''}
+      <td class="c"><span class="heat" style="background:${HEAT[sb.k]};color:var(--ink)">${x.r.comp == null ? 'NA' : Math.round(x.r.comp * 100)}</span></td>${lbPlan ? cell(vp, vp != null) : ''}${past ? `<td class="r num">${fN(x.r.totQ)}</td><td class="r num">${inr(x.r.totV)}</td><td class="c num" style="color:${mom(x) == null ? 'var(--ink-3)' : mom(x) >= 0 ? 'var(--good)' : 'var(--crit)'}">${mom(x) == null ? 'NA' : (mom(x) >= 0 ? '+' : '') + fP(mom(x))}</td>` : ''}
       ${KPI.map(k => cell(x.r.k[k.id].p, x.r.k[k.id].has)).join('')}</tr>`;
   }).join('');
   $('#lbTable').innerHTML = head + '<tbody>' + body + '</tbody>';
   $$('#lbTable th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.s; const key = isNaN(+k) ? k : +k; if (ST.lbSort.k === key) ST.lbSort.dir *= -1; else ST.lbSort = { k: key, dir: key === 'name' ? 1 : -1 }; renderLeaderboard(); });
-  $$('#lbTable tr.click').forEach(tr => tr.onclick = () => {
-    const nm = tr.dataset.name;
-    if (ST.lb === 'SE') { const s = DB.seInfo.get(nm); ST.se = nm; ST.asm = s ? s.asm : ''; ST.zone = s ? s.z : ''; }
-    else { const a = DB.asms.find(a => a.n === nm); ST.asm = nm; ST.se = ''; ST.zone = a ? a.z : ''; }
-    setTab('overview'); renderAll();
-  });
+  // a click opens that person's 16-KPI cards right here (not the Business Overview); Back returns to the list
+  $$('#lbTable tr.click').forEach(tr => tr.onclick = () => { navPush(); ST.lbPick = { lvl: ST.lb, n: tr.dataset.name }; renderLbPerson(true); });
+  renderLbPerson(false);
+}
+function renderLbPerson(scroll) {
+  const el = $('#lbPerson'); if (!el) return; const pk = ST.lbPick;
+  if (!pk) { el.hidden = true; el.innerHTML = ''; return; }
+  const day = ST.day, base = { rsm: '', zone: '', asm: '', se: '', st: ST.st, dist: ST.dist, cat: ST.cat };
+  const f = pk.lvl === 'SE' ? Object.assign(base, { se: pk.n }) : Object.assign(base, { asm: pk.n });
+  const past = isPastMon(), hr = past ? boardMonth(pk.lvl, ST.lbMon).find(x => x.name === pk.n) : null;
+  if (past && !hr) { el.hidden = false; el.innerHTML = `<div class="card-h"><h2>${esc(pk.n)} · ${esc(monLabel(ST.lbMon))}</h2><div class="toolbar"><button class="btn sm" type="button" id="lbPClose">Close</button></div></div><div class="card-b"><p class="muted">No record for ${esc(pk.n)} in ${esc(monLabel(ST.lbMon))}.</p></div>`; $('#lbPClose').onclick = () => { navPush(); ST.lbPick = null; renderLbPerson(false); }; return; }
+  const r = past ? hr.r : scopeCalc(f, day), K = r.k, rPrev = !past && day > 1 ? scopeCalc(f, Math.max(1, day - 1)) : null, one = past ? histNotes(r) : tileNotes(r, day), sb = scoreBand(r.comp);
+  const info = pk.lvl === 'SE' ? DB.seInfo.get(pk.n) || {} : DB.asms.find(a => a.n === pk.n) || {};
+  el.hidden = false;
+  el.innerHTML = `<div class="card-h"><h2>${esc(pk.n)} · 16-KPI scorecard · ${esc(monLabel(ST.lbMon || DB.month))}</h2><div class="toolbar"><span class="heat" style="background:${HEAT[sb.k]};color:var(--ink);padding:4px 10px;border-radius:99px">Score ${r.comp == null ? 'NA' : Math.round(r.comp * 100)}</span><button class="btn sm" type="button" id="lbPClose">Close</button></div></div>
+    <div class="card-b"><p class="small muted" style="margin:0 0 10px">${esc([pk.lvl, info.z || info.zone ? (info.z || info.zone) + ' zone' : '', pk.lvl === 'SE' && info.asm ? 'ASM ' + info.asm : '', rsmOf(pk.lvl === 'SE' ? info.asm : pk.n) ? 'RSM ' + rsmOf(pk.lvl === 'SE' ? info.asm : pk.n) : '', fN(r.base) + ' active dealers', past ? 'month-wise history · ' + r.scored + ' KPIs with data' : 'data to ' + dLabel(day)].filter(Boolean).join(' · '))}</p>
+    <div class="tiles">${KPI.map(k => tileHTML(past ? Object.assign({}, k, { src: 'hist' }) : k, K[k.id], rPrev ? rPrev.k[k.id] : null, one[k.id])).join('')}</div></div>`;
+  $('#lbPClose').onclick = () => { navPush(); ST.lbPick = null; renderLbPerson(false); };
+  if (scroll) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
 }
 
 /* ---------- charts ---------- */
@@ -736,7 +827,7 @@ function renderActions() {
   $('#waLink').href = 'https://wa.me/?text=' + encodeURIComponent(txt);
 }
 function waMessage({ f, day, r, acts }) {
-  const K = r.k, wdLeft = DB.wdTotal - DB.wd[day];
+  const K = r.o, wdLeft = DB.wdTotal - DB.wd[day];
   const L = [];
   L.push(`*Daily Action Plan – ${nextWorkDay(day)}*`);
   if (f.se) { const s = DB.seInfo.get(f.se) || {}; L.push(`SE: ${f.se} | ASM: ${s.asm || '-'}`); }
@@ -750,7 +841,7 @@ function waMessage({ f, day, r, acts }) {
     const rows = board('SE', day).filter(x => (!f.asm || x.asm === f.asm) && (!f.zone || x.z === f.zone)).sort((a, b) => (a.r.comp ?? 9) - (b.r.comp ?? 9));
     if (rows.length && rows.length <= 12) {
       L.push('*SE status (lowest score first)*');
-      rows.forEach(x => { const g = Math.max(0, x.r.k[1].t - x.r.k[1].a); L.push(`• ${x.name}: ${x.r.comp == null ? '-' : Math.round(x.r.comp * 100)} · BP ${x.r.k[1].a}/${x.r.k[1].t}${g ? ` (−${g})` : ''} · NPD ${x.r.k[5].a}/${x.r.k[5].t}`); });
+      rows.forEach(x => { const g = Math.max(0, x.r.o[1].t - x.r.o[1].a); L.push(`• ${x.name}: ${x.r.comp == null ? '-' : Math.round(x.r.comp * 100)} · BP ${x.r.o[1].a}/${x.r.o[1].t}${g ? ` (−${g})` : ''} · NPD ${x.r.o[5].a}/${x.r.o[5].t}`); });
       L.push('');
     }
   }
@@ -775,7 +866,7 @@ function waMessage({ f, day, r, acts }) {
 function renderDealers() {
   const f = curF(), day = ST.day, r = scopeCalc(f, day), ds = dayState(day), D = DB.D;
   const q = ST.dq.trim().toLowerCase();
-  let idx = r.idx;
+  let idx = r.idx.filter(listedDealer);
   if (ST.ds === 'active') idx = idx.filter(i => D.s[i] === 'A');
   if (ST.ds === 'unbilled') idx = idx.filter(i => D.s[i] === 'A' && ds.qty[i] <= 0);
   if (q) idx = idx.filter(i => (D.n[i] + ' ' + D.c[i] + ' ' + D.city[i] + ' ' + D.se[i] + ' ' + D.dist[i]).toLowerCase().includes(q));
@@ -797,22 +888,21 @@ function renderDealers() {
 /* ---------- method ---------- */
 function renderMethod() {
   $('#defTable').innerHTML = `<thead><tr><th>#</th><th>KPI</th><th>Achievement</th><th>Target</th><th>Weight</th><th>Source &amp; refresh</th></tr></thead><tbody>` +
-    KPI.map(k => `<tr><td class="num">${k.id}</td><td><b>${esc(k.name)}</b></td><td>${esc(k.def)}</td><td>${esc(k.tgt)}</td><td>${k.w ? '10%' : 'Tracked'}</td><td>${{ live: 'Daily dump (updates on upload)', pjp: 'TBR Journey Plan Update', sub: 'TBR Distribution (distributor MIS)', mis: 'MIS Sep-26 (monthly)', od: 'OD snapshot (SE Evaluation workbook)', snap: 'SE Evaluation workbook snapshot' }[k.src]}</td></tr>`).join('') + '</tbody>';
+    KPI.map(k => `<tr><td class="num">${k.id}</td><td><b>${esc(k.name)}</b></td><td>${esc(k.def)}</td><td>${esc(k.tgt)}</td><td>${wLbl(k)}</td><td>${esc((SRC[k.src] || [])[2] || k.src)}</td></tr>`).join('') + '</tbody>';
   const s = SEED.meta.src;
-  $('#srcList').innerHTML = `<p><b>Billing &amp; orders (live KPIs 1, 5, 6, 8, 9, volume, day-wise):</b> ${esc(DB.source === 'upload' ? DB.srcName + ' (your upload)' : s.billing + ' and ' + s.orders)} — month ${MON[DB.m - 1]}-${DB.y}, bills to ${dLabel(DB.maxDay)}.</p>
-    <p><b>Dealer master, SE/ASM mapping, active status:</b> ${esc(s.master)}. Each dealer counts for the SE named in the master.</p>
-    <p><b>Volume plan:</b> ${esc(s.plan)} (club level, attached to the club’s lead dealer).</p>
-    <p><b>KPI 2 (PJP):</b> ${esc(s.pjp)}. <b>KPI 3:</b> ${esc(s.sub)}; distributor → SE from the SE Evaluation Index.</p>
-    <p><b>KPI 4 &amp; 7 (YTD growth), MBD targets, Jul–Sep dealer averages:</b> ${esc(s.mis)}.</p>
-    <p><b>KPI 10:</b> ${esc(s.od)}. <b>KPI 11–16:</b> ${esc(s.snap)}.</p>
-    <p><b>NPD SKU list:</b> ${DB.npd.size} SKUs from the SE Evaluation workbook. <b>Premium:</b> the dump’s Premium flag (KIDS &gt; ₹3,500 or ASP &gt; ₹5,600 when the flag is missing).</p>`;
-  $('#assumeList').innerHTML = `<p>1. <b>Weights:</b> KPIs 1–10 at 10% each, KPIs 11–16 tracked but unweighted, as in the KPI Config sheet (marked placeholder there). Achievement capped at ${CAP * 100}% before weighting.</p>
-    <p>2. <b>Rating bands</b> (not defined in the workbook): Strong ≥ 90, Steady 75–89, At risk 50–74, Critical &lt; 50. KPI tiles: Achieved ≥ 100%, Close 80–99%, Behind 50–79%, Critical &lt; 50%.</p>
-    <p>3. <b>Live KPIs compare month-to-date achievement with the full-month target</b>, so scores rise through the month. The pace marker on meters shows the share of working days gone (Sundays excluded).</p>
-    <p>4. <b>KPI 1 counts any billed dealer of the scope</b>, including inactive codes that billed (the workbook’s existing logic); the base counts only Active dealers.</p>
-    <p>5. <b>PJP data covers W1–W2 only</b> (W3–W4 were zero in the TBR sheet). SEs absent from the Journey Plan Update show “No data” and are excluded from their composite.</p>
-    <p>6. <b>Premium share target 6%</b> as used in the tracker sheets (the original SE Dashboard showed 10%) — please confirm.</p>
-    <p>7. Action priorities are a ranking rule, not a forecast: unbilled active dealer 50 pts (+ up to 30 for Jul–Sep volume, +10 with an open order), billed without NPD 22+, below MBD 8–25, overdue 15, no premium 12, complaint 8, stock rejection 6.</p>`;
+  $('#srcList').innerHTML = `<p><b>KPIs 1–6 and 8 (orders, billing, run rate, conversion, cancellation, billing points, MBD):</b> ${esc(SEED.meta.fromWorkbook || 'the workbook')} · Dashboard SE and Dashboard ASM, to ${dLabel(offDay())}. Zone, RSM and All-India add up the ASM rows.</p>
+    <p><b>KPIs 7, 9 and 12 (revenue per dealer, reactivation, NPD) and day-wise volume:</b> ${esc(DB.source === 'upload' ? DB.srcName + ' (your upload)' : s.billing)}, bills to ${dLabel(DB.maxDay)}. Dormant = no billing in the 3 months before (Dealer_Vol1).</p>
+    <p><b>KPIs 10–11 (value and ASP growth):</b> ${esc(s.mis)}.</p>
+    <p><b>KPIs 13–14 (DJP adherence, productive calls):</b> ${esc(s.pjp)}. <b>KPI 15 (hours in market):</b> Check In Check out export.</p>
+    <p><b>KPI 16 (sell-through):</b> Secondary sheet (Bizom invoices, distributor = Selected_Warehouse_Erp_Code) ÷ units billed to the same distributor codes in Billing.</p>
+    <p><b>Dealer master, SE/ASM mapping, active status:</b> ${esc(s.master)}. <b>NPD SKU list:</b> ${DB.npd.size} SKUs.</p>`;
+  $('#assumeList').innerHTML = `<p>1. <b>Weights:</b> sales &amp; orders 35% (KPIs 1–2 at 10%, 3–5 at 5%), dealer coverage 30% (6 at 10%, 7–8 at 7.5%, 9 at 5%), growth &amp; mix 15% (10–12 at 5%), field execution 15% (13 at 7.5%, 14 at 5%, 15 at 2.5%), distribution 5% (16). Each KPI capped at ${CAP * 100}% before weighting; KPIs with no data are left out and the rest re-weighted.</p>
+    <p>2. <b>Rating bands:</b> Strong ≥ 90, Steady 75–89, At risk 50–74, Critical &lt; 50. KPI tiles: Achieved ≥ 100%, Close 80–99%, Behind 50–79%, Critical &lt; 50%.</p>
+    <p>3. <b>Billing (KPI 2) is compared with the pro-rata target</b> (month target × days gone ÷ days in month), so the score is fair on any day of the month. Billing points and MBD use the month targets from the Dashboard sheets.</p>
+    <p>4. <b>Cancellation (KPI 5) is lower-is-better:</b> score = 10% ÷ actual cancellation share, so 10% or less scores full marks.</p>
+    <p>5. <b>Revenue per active dealer (KPI 7)</b> is compared with the All-India average for the same day, so 100% = national average.</p>
+    <p>6. <b>Removed from the scorecard:</b> sub-dealer billing, no-overdue, premium dealers, premium share, complaints, Google rating, GSB, ISB, PLS and DPL. Their data still shows in Dealer drill-down; the action plan and WhatsApp cards still suggest premium and OD actions at dealer level.</p>
+    <p>7. Action priorities are a ranking rule, not a forecast: unbilled active dealer 50 pts (+ up to 30 for last-3-month volume, +10 with an open order), billed without NPD 22+, below MBD 8–25, overdue 15, no premium 12, complaint 8, stock rejection 6.</p>`;
 }
 
 /* ---------- AI briefing (sample capability) ---------- */
@@ -859,25 +949,25 @@ function buildWorkbook(onlyActions) {
   const f = curF(), day = ST.day, r = scopeCalc(f, day);
   const add = (name, aoa, widths) => { const ws = XL.utils.aoa_to_sheet(aoa); if (widths) ws['!cols'] = widths.map(w => ({ wch: w })); XL.utils.book_append_sheet(wb, ws, name); };
   const acts = actionsFor(r.idx, day);
-  const actRows = [['Priority', 'Dealer code', 'Dealer', 'City', 'State', 'SE', 'ASM', 'Status', 'MTD units', 'Jul–Sep avg units', 'Oct plan', 'Score', 'Gap 1', 'Action 1', 'Gap 2', 'Action 2', 'Gap 3', 'Action 3']];
+  const actRows = [['Priority', 'Dealer code', 'Dealer', 'City', 'State', 'SE', 'ASM', 'Status', 'MTD units', 'Jul–Sep avg units', `${curMon()} plan`, 'Score', 'Gap 1', 'Action 1', 'Gap 2', 'Action 2', 'Gap 3', 'Action 3']];
   acts.forEach((x, n) => { const i = x.i, D = DB.D; const row = [n + 1, D.c[i], D.n[i], D.city[i], D.st[i], D.se[i], D.asm[i], D.s[i] === 'A' ? 'Active' : D.s[i] === 'I' ? 'Inactive' : D.s[i] === 'N' ? 'Not in Dealer_Vol1' : 'Closed', x.q, x.l3, D.pl[i] || 0, Math.round(x.sc)]; x.rs.slice(0, 3).forEach(y => row.push(y.t, y.a)); actRows.push(row); });
   if (!onlyActions) {
     const sum = [['16-Point SE & ASM Tracker'], ['Scope', scopeName(f)], ['Level', r.lvl], ['Data to', dLabel(day) + ' ' + DB.y], ['Source', DB.source === 'upload' ? DB.srcName : SEED.meta.src.billing], ['Composite score (of 100)', r.comp == null ? 'No data' : Math.round(r.comp * 100)], ['Active dealers', r.base], ['Mapped dealers', r.mapped], ['Units MTD', r.totQ], ['Value MTD (₹)', Math.round(r.totV)], ['Oct plan (units)', r.plan || 'n/a'], [], ['#', 'KPI', 'Target', 'Achievement', 'Ach %', 'Weight', 'Score pts', 'Source']];
     KPI.forEach(k => { const v = kpiRowVals(r, k); sum.push([k.id, k.name, ...v, k.w, r.k[k.id].score == null ? '' : +(r.k[k.id].score * 100).toFixed(2), k.src]); });
     add('Summary', sum, [8, 44, 12, 12, 10, 8, 10, 10]);
     for (const lv of ['SE', 'ASM']) {
-      const rows = board(lv, day); const hdr = ['Rank', lv, 'ASM', 'Zone', 'Active dealers', 'Score (of 100)', 'Units MTD', 'Oct plan']; KPI.forEach(k => hdr.push(`K${k.id} Target`, `K${k.id} Ach`, `K${k.id} Ach%`));
+      const rows = board(lv, day); const hdr = ['Rank', lv, 'ASM', 'Zone', 'Active dealers', 'Score (of 100)', 'Units MTD', `${curMon()} plan`]; KPI.forEach(k => hdr.push(`K${k.id} Target`, `K${k.id} Ach`, `K${k.id} Ach%`));
       const aoa = [hdr]; rows.slice().sort((a, b) => (a.rank || 999) - (b.rank || 999)).forEach(x => { const row = [x.rank || '', x.name, x.asm, x.z, x.r.base, x.r.comp == null ? '' : Math.round(x.r.comp * 100), x.r.totQ, x.r.plan || '']; KPI.forEach(k => row.push(...kpiRowVals(x.r, k))); aoa.push(row); });
       add(lv + ' Scorecard', aoa, [6, 24, 22, 8, 10, 10, 10, 10]);
     }
-    const s = series(f, day); const t = r.k[1].t;
+    const s = series(f, day); const t = r.k[6].t;
     add('Day-wise', [['Date', 'Units (day)', 'Value (day) ₹', 'Units MTD', 'New BP (day)', 'Billing points', 'BP % of target', 'NPD counters', 'Premium dealers', 'MBD', 'Premium share', 'Orders booked (day) ₹']].concat(s.map(o => [dLabel(o.d), o.du, Math.round(o.dv), o.units, o.newB, o.billed, t ? +(o.billed / t).toFixed(4) : '', o.npd, o.prem, +o.mbd.toFixed(2), +o.ps.toFixed(4), Math.round(o.ov)])), [12, 10, 14, 10, 10, 12, 12, 12, 14, 8, 12, 16]);
     add('Insights', [['Severity', 'Insight', 'Detail', 'Action']].concat(insightsFor(f, day).map(x => [x.sev, x.h, x.p, x.a])), [10, 60, 80, 70]);
   }
   add('Action Plan', actRows, [8, 10, 32, 16, 14, 22, 20, 9, 9, 10, 9, 7, 26, 50, 26, 50, 26, 50]);
   if (!onlyActions) {
     const ds = dayState(day), D = DB.D;
-    const aoa = [['Code', 'Dealer', 'City', 'District', 'State', 'Zone', 'ASM', 'SE', 'Status', 'Category', 'MTD units', 'MTD value ₹', 'Jul–Sep avg', 'Oct plan', 'Billed', 'NPD', 'Premium units', 'Models', 'MBD target', 'Value growth vs base', 'ASP growth vs base', 'OD ₹', 'Open complaints', 'Google rating', 'GSB', 'ISB', 'PLS ≥ State', 'DPL ≥ State']];
+    const aoa = [['Code', 'Dealer', 'City', 'District', 'State', 'Zone', 'ASM', 'SE', 'Status', 'Category', 'MTD units', 'MTD value ₹', 'Jul–Sep avg', `${curMon()} plan`, 'Billed', 'NPD', 'Premium units', 'Models', 'MBD target', 'Value growth vs base', 'ASP growth vs base', 'OD ₹', 'Open complaints', 'Google rating', 'GSB', 'ISB', 'PLS ≥ State', 'DPL ≥ State']];
     r.idx.forEach(i => aoa.push([D.c[i], D.n[i], D.city[i], D.dist[i], D.st[i], D.z[i], D.asm[i], D.se[i], D.s[i], D.cat[i], ds.qty[i], Math.round(ds.val[i]), D.l3[i], D.pl[i], ds.qty[i] > 0 ? 'Y' : 'N', ds.nq[i] > 0 ? 'Y' : 'N', ds.pq[i], ds.mc[i], D.mt[i], D.vg[i] == null ? '' : D.vg[i] ? 'Y' : 'N', D.ag[i] == null ? '' : D.ag[i] ? 'Y' : 'N', D.od[i], D.cp[i], D.gr[i] == null ? '' : D.gr[i], D.gsb[i] ? 'Y' : 'N', D.isb[i] ? 'Y' : 'N', D.pls[i] ? 'Y' : 'N', D.dpl[i] ? 'Y' : 'N']));
     add('Dealers', aoa, [8, 30, 14, 14, 14, 7, 20, 20, 7, 7, 9, 11, 9, 8]);
   }
@@ -1039,7 +1129,7 @@ function renderAll() {
 }
 /* ---------- Back: every page / person / filter change made by navigating is remembered; the Back button (and the phone's back key) returns to it ---------- */
 const NAVBACK = []; let navRestoring = false, navLast = 0;
-function navSnap() { return { tab: ST.tab, f: { rsm: ST.rsm, zone: ST.zone, asm: ST.asm, se: ST.se, st: ST.st, dist: ST.dist, cat: ST.cat }, asmSel: ST.asmSel, rseSel: ST.rseSel, y: window.scrollY }; }
+function navSnap() { return { tab: ST.tab, f: { rsm: ST.rsm, zone: ST.zone, asm: ST.asm, se: ST.se, st: ST.st, dist: ST.dist, cat: ST.cat }, asmSel: ST.asmSel, rseSel: ST.rseSel, lbPick: ST.lbPick || null, lbMon: ST.lbMon || "", y: window.scrollY }; }
 function navPush() {
   if (!window.__navReady || navRestoring || Date.now() - navLast < 80) return; navLast = Date.now();
   NAVBACK.push(navSnap()); if (NAVBACK.length > 30) NAVBACK.shift();
@@ -1050,7 +1140,7 @@ function navBtn() { const b = $('#btnBack'); if (b) b.hidden = !NAVBACK.length; 
 function navBack() {
   const s = NAVBACK.pop(); navBtn(); if (!s) return;
   navRestoring = true;
-  try { Object.assign(ST, s.f, { asmSel: s.asmSel, rseSel: s.rseSel }); renderAll(); onTab(s.tab); } finally { navRestoring = false; }
+  try { Object.assign(ST, s.f, { asmSel: s.asmSel, rseSel: s.rseSel, lbPick: s.lbPick || null, lbMon: s.lbMon || "" }); renderAll(); onTab(s.tab); } finally { navRestoring = false; }
   setTimeout(() => window.scrollTo(0, s.y || 0), 40);
 }
 window.addEventListener('popstate', () => { if (NAVBACK.length) navBack(); });
@@ -1074,6 +1164,10 @@ function boot() {
   $('#dPrev').onclick = () => { if (ST.day > 1) { ST.day--; renderAll(); } };
   $('#dNext').onclick = () => { if (ST.day < DB.maxDay) { ST.day++; renderAll(); } };
   $('#btnReset').onclick = () => { Object.assign(ST, { rsm: '', zone: '', asm: '', se: '', st: '', dist: '', cat: '', day: DB.maxDay, apAll: false, dAll: false }); renderAll(); };
+  if ($('#lbQ')) {   // scorecard search: filters the list as you type; Enter opens the first match's 16-KPI cards
+    let lt; $('#lbQ').oninput = e => { ST.lbQ = e.target.value; clearTimeout(lt); lt = setTimeout(renderLeaderboard, 120); };
+    $('#lbQ').onkeydown = e => { if (e.key !== 'Enter') return; e.preventDefault(); const tr = $('#lbTable tbody tr.click'); if (tr) tr.click(); };
+  }
   $$('[data-lb]').forEach(b => b.onclick = () => { ST.lb = b.dataset.lb; store.set('tracker16.ui', JSON.stringify({ lb: ST.lb })); renderLeaderboard(); });
   $$('[data-ds]').forEach(b => b.onclick = () => { ST.ds = b.dataset.ds; ST.dAll = false; renderDealers(); });
   let sq; $('#dSearch').oninput = e => { ST.dq = e.target.value; clearTimeout(sq); sq = setTimeout(renderDealers, 150); };

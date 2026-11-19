@@ -6,7 +6,8 @@
                                                       the team password (safe to publish), then dist/
   python build.py --publish-users BUNDLE.json --password-file PW.txt
                                                    -> src/js/data.js with admin + per-person logins (as “Publish update”)
-  python build.py --local PACK.json               -> local/Tracker_LOCAL.html (plain data embedded;
+  python build.py --firebase                       -> dist/ for Firebase Hosting (never includes data.js)
+  python build.py --local PACK.json              -> local/Tracker_LOCAL.html (plain data embedded;
                                                       for your own computer only — never publish it)
 """
 import base64, gzip, hashlib, json, os, re, shutil, sys, time
@@ -52,13 +53,15 @@ def publish_users(bundle_path, admin_pw):
     print('encrypted data + logins:', DATA_JS, os.path.getsize(DATA_JS), 'bytes · admin +', len(b['users']), 'logins · data to', b['asOf'])
 
 
-def build_dist():
+def build_dist(firebase=False):
+    """firebase=True: site for Firebase Hosting - never carries data.js (data comes from Firestore after sign-in)."""
     if os.path.isdir(DIST):
         shutil.rmtree(DIST)
-    shutil.copytree(SRC, DIST, ignore=lambda d, names: [n for n in names if n in SKIP])
+    skip = SKIP | ({'data.js'} if firebase else set())
+    shutil.copytree(SRC, DIST, ignore=lambda d, names: [n for n in names if n in skip])
     html = open(os.path.join(DIST, 'index.html'), encoding='utf-8').read()
     assert '<!--SEED-->' in html and '<!--DATA-->' in html
-    data_tag = '<script src="js/data.js"></script>' if os.path.exists(DATA_JS) else ''
+    data_tag = '<script src="js/data.js"></script>' if os.path.exists(DATA_JS) and not firebase else ''
     html = html.replace('<!--SEED-->', '').replace('<!--DATA-->', data_tag)
     # every deploy gets new file URLs, so browsers never keep old code or old data
     ver = time.strftime('%Y%m%d%H%M%S')
@@ -110,6 +113,6 @@ if __name__ == '__main__':
         if len(pw) < 8:
             raise SystemExit('Password must be at least 8 characters.')
         encrypt_pack(a[a.index('--publish') + 1], pw)
-    build_dist()
+    build_dist(firebase='--firebase' in a)
     if '--local' in a:
         build_local(a[a.index('--local') + 1])

@@ -29,7 +29,7 @@ const perfSheetCols = lvl => [
   { h: 'Status', v: r => PSTAT[r.p.status].l, w: 10 },
   { h: 'Trend', v: r => r.p.trend.l, w: 16 }, { h: 'Trend basis', v: r => r.p.trend.basis, w: 34 },
   { h: 'Active dealers', v: r => r.p.active, w: 9, fmt: 'int' },
-  { h: 'Billing points', v: r => r.p.r.k[1].a, w: 9, fmt: 'int' }, { h: 'Billing point target', v: r => r.p.r.k[1].t, w: 9, fmt: 'int' }, { h: 'Billing point %', v: r => r.p.r.k[1].p, w: 9, fmt: 'pct' },
+  { h: 'Billing points', v: r => r.p.r.k[6].a, w: 9, fmt: 'int' }, { h: 'Billing point target', v: r => r.p.r.k[6].t, w: 9, fmt: 'int' }, { h: 'Billing point %', v: r => r.p.r.k[6].p, w: 9, fmt: 'pct' },
   { h: '16-point composite (of 100)', v: r => r.p.r.comp == null ? null : Math.round(r.p.r.comp * 100), w: 11, fmt: 'int' },
   { h: 'DJP visits planned (W1–W2)', v: r => (pjpOf(lvl === 'ASM' ? 'ASM' : 'SE', r.name) || {}).p ?? null, w: 11, fmt: 'int' },
   { h: 'DJP visits made', v: r => (pjpOf(lvl === 'ASM' ? 'ASM' : 'SE', r.name) || {}).a ?? null, w: 10, fmt: 'int' },
@@ -145,14 +145,14 @@ const EXPORTS = [
     { name: 'ASM Summary', title: 'Performance summary — ASMs', meta: metaRows(all), cols: perfSheetCols('ASM'), rows: rankRows(asmRows()), freezeCols: 2 },
     { name: 'Action Plan Status', title: 'Action tracking', meta: [['Stored', 'This browser only (Phase 1)']], cols: trackCols, rows: Object.values(TRK).filter(r => all || ((!ST.zone || r.zone === ST.zone) && (!ST.asm || r.asm === ST.asm) && (!ST.se || r.name === ST.se))) }] }) },
   { key: 'kpi16', label: '16-KPI board', desc: 'Every SE/SE and ASM with target, achievement and Ach % for all 16 KPIs.', build: all => {
-    const sh = lvl => { const rows = board(lvl, ST.day).slice().sort((a, b) => (a.rank || 999) - (b.rank || 999)); return { name: `${lvl === 'SE' ? 'SE' : 'ASM'} 16 KPIs`, title: `16-KPI board — ${lvl === 'SE' ? 'SEs' : 'ASMs'}`, meta: metaRows(all), freezeCols: 2,
+    const sh = lvl => { const rows = lbBoard(lvl).slice().sort((a, b) => (a.rank || 999) - (b.rank || 999)); return { name: `${lvl === 'SE' ? 'SE' : 'ASM'} 16 KPIs`, title: `16-KPI board — ${lvl === 'SE' ? 'SEs' : 'ASMs'}`, meta: metaRows(all), freezeCols: 2,
       cols: [{ h: 'Rank', v: x => x.rank || null, w: 6, fmt: 'int' }, { h: lvl === 'SE' ? 'SE' : 'ASM', k: 'name', w: 22 }, { h: 'ASM', k: 'asm', w: 20 }, { h: 'Zone', k: 'z', w: 8 }, { h: 'Composite', v: x => x.r.comp == null ? null : Math.round(x.r.comp * 100), w: 9, fmt: 'int' },
         ...KPI.flatMap(k => [{ h: `K${k.id} target`, v: x => x.r.k[k.id].has ? x.r.k[k.id].t : null, w: 8, fmt: k.ratio ? 'pct1' : k.avg ? 'num1' : 'int' }, { h: `K${k.id} ach`, v: x => x.r.k[k.id].has ? x.r.k[k.id].a : null, w: 8, fmt: k.ratio ? 'pct1' : k.avg ? 'num1' : 'int' }, { h: `K${k.id} %`, v: x => x.r.k[k.id].p, w: 7, fmt: 'pct' }])], rows }; };
     return { name: '16_KPI_Board', sheets: [sh('SE'), sh('ASM')] };
   } },
   { key: 'dealers', label: 'Dealer details', desc: 'Every dealer in scope with billing, plan and KPI flags.', build: all => {
     const r = scopeCalc(curF(), ST.day), ds = dayState(ST.day), D = DB.D;
-    return { name: 'Dealers', sheets: [{ name: 'Dealers', title: 'Dealer details', meta: metaRows(all), freezeCols: 2, rows: r.idx,
+    return { name: 'Dealers', sheets: [{ name: 'Dealers', title: 'Dealer details', meta: metaRows(all), freezeCols: 2, rows: r.idx.filter(listedDealer),
       cols: [{ h: 'Code', v: i => D.c[i], w: 9 }, { h: 'Dealer', v: i => D.n[i], w: 30 }, { h: 'City', v: i => D.city[i], w: 14 }, { h: 'State', v: i => D.st[i], w: 13 }, { h: 'Zone', v: i => D.z[i], w: 8 }, { h: 'ASM', v: i => D.asm[i], w: 20 }, { h: 'SE', v: i => D.se[i], w: 20 }, { h: 'Status', v: i => D.s[i] === 'A' ? 'Active' : D.s[i] === 'I' ? 'Inactive' : D.s[i] === 'N' ? 'Not in Dealer_Vol1' : 'Closed', w: 8 },
         { h: 'MTD units', v: i => ds.qty[i], w: 9, fmt: 'int' }, { h: 'MTD value ₹', v: i => Math.round(ds.val[i]), w: 12, fmt: 'inr' }, { h: 'Plan', v: i => D.pl[i] || null, w: 8, fmt: 'int' }, { h: 'Jul–Sep avg', v: i => D.l3[i], w: 9, fmt: 'int' }, { h: 'Billed', v: i => ds.qty[i] > 0 ? 'Y' : 'N', w: 6 }, { h: 'NPD', v: i => ds.nq[i] > 0 ? 'Y' : 'N', w: 5 }, { h: 'Premium units', v: i => ds.pq[i], w: 8, fmt: 'int' }, { h: 'Models', v: i => ds.mc[i], w: 7, fmt: 'int' }, { h: 'MBD target', v: i => D.mt[i], w: 8, fmt: 'num1' }, { h: 'OD ₹', v: i => D.od[i], w: 10, fmt: 'inr' }, { h: 'Open complaints', v: i => D.cp[i], w: 9, fmt: 'int' }] }] };
   } },

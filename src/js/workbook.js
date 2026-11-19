@@ -51,7 +51,7 @@ async function packFromWorkbook(buf, fileName, say) {
   const dm = rows('Dealer master'); const dh = findHeader(dm, ['code', 'dealername']);
   if (dh < 0) throw new Error('Dealer master: header row with “Code” and “Dealer Name” not found.');
   const c = colMap(dm[dh]), g = (r, k) => c[k] !== undefined ? r[c[k]] : null;
-  const D = { c: [], n: [], city: [], dist: [], st: [], z: [], asm: [], se: [], s: [], cat: [], club: [], vg: [], ag: [], mt: [], l3: [], od: [], cp: [], gr: [], gsb: [], isb: [], pls: [], dpl: [], pl: [] };
+  const D = { c: [], n: [], city: [], dist: [], st: [], z: [], asm: [], se: [], s: [], cat: [], club: [], vg: [], ag: [], mt: [], l3: [], od: [], cp: [], gr: [], gsb: [], isb: [], pls: [], dpl: [], pl: [], xm: [], sq: [], so: [] };   // sq / so = secondary units sold / outlets billed by this dealer as a distributor (Secondary sheet, this month); xm = 1: billed dealer that is not in the Dealer master
   const idx = new Map(), rseCodes = new Map();
   const add = o => { const i = D.c.length; for (const k in D) D[k].push(o[k] !== undefined ? o[k] : null); idx.set(o.c, i); return i; };
   for (let i = dh + 1; i < dm.length; i++) {
@@ -61,7 +61,7 @@ async function packFromWorkbook(buf, fileName, say) {
     if (rse && g(r, 'rsecode')) rseCodes.set(rse, code(g(r, 'rsecode')));
     add({ c: cd, n: T(g(r, 'dealername')), city: T(g(r, 'city')), dist: T(g(r, 'district')), st: T(g(r, 'state')), z: tcase(g(r, 'zone')), asm: T(g(r, 'asmname')), se: rse,
       s: st.startsWith('active') ? 'A' : st.startsWith('inactive') ? 'I' : 'C', cat: T(g(r, 'category')) || '-', club: code(g(r, 'clubcode')) || cd,
-      vg: null, ag: null, mt: 7, l3: 0, od: 0, cp: 0, gr: null, gsb: 0, isb: 0, pls: 0, dpl: 0, pl: 0 });
+      vg: null, ag: null, mt: 7, l3: 0, od: 0, cp: 0, gr: null, gsb: 0, isb: 0, pls: 0, dpl: 0, pl: 0, xm: 0 });
   }
   if (!D.c.length) throw new Error('Dealer master has no dealer rows.');
 
@@ -84,7 +84,7 @@ async function packFromWorkbook(buf, fileName, say) {
     const dt = toDate(r[iDt]); if (!dt || dt.getFullYear() !== Y || dt.getMonth() !== M) continue;
     const q = numv(r[iQ]), v = iV >= 0 ? numv(r[iV]) : 0; lines++;
     let di = idx.get(cd);
-    if (di === undefined) { di = add({ c: cd, n: tcase(iNm >= 0 ? r[iNm] : 'Dealer ' + cd), city: tcase(iCity >= 0 ? r[iCity] : ''), dist: '', st: tcase(iSt >= 0 ? r[iSt] : ''), z: tcase(iZ >= 0 ? r[iZ] : ''), asm: tcase(iAsm >= 0 ? r[iAsm] : ''), se: seByCode.get(code(iRse >= 0 ? r[iRse] : 0)) || '', s: 'A', cat: '-', club: cd, vg: null, ag: null, mt: 7, l3: 0, od: 0, cp: 0, gr: null, gsb: 0, isb: 0, pls: 0, dpl: 0, pl: 0 }); added++; }
+    if (di === undefined) { di = add({ c: cd, n: tcase(iNm >= 0 ? r[iNm] : 'Dealer ' + cd), city: tcase(iCity >= 0 ? r[iCity] : ''), dist: '', st: tcase(iSt >= 0 ? r[iSt] : ''), z: tcase(iZ >= 0 ? r[iZ] : ''), asm: tcase(iAsm >= 0 ? r[iAsm] : ''), se: seByCode.get(code(iRse >= 0 ? r[iRse] : 0)) || '', s: 'A', cat: '-', club: cd, vg: null, ag: null, mt: 7, l3: 0, od: 0, cp: 0, gr: null, gsb: 0, isb: 0, pls: 0, dpl: 0, pl: 0, xm: 1 }); added++; }
     const mname = iMod >= 0 ? T(r[iMod]) : ''; let mk = iSM >= 0 ? T(r[iSM]) : ''; if (!mk) mk = (iSeg >= 0 ? T(r[iSeg]) : '') + mname; if (!mk) mk = iMat >= 0 ? T(r[iMat]) : '-';
     let mi = mIdx.get(mk); if (mi === undefined) { mi = models.length; models.push(mk); mLab.push(mname || mk); mIdx.set(mk, mi); }
     let prem = 0;
@@ -217,6 +217,22 @@ async function packFromWorkbook(buf, fileName, say) {
     }
     for (const [se, o] of per) { const s = ses.get(se) || {}; if (o.m > 0) dists.push({ c: 0, n: `Distributors of ${se}`, city: '', st: '', se, asm: s.asm || '', z: s.z || '', m: o.m, w: o.w, mtd: o.mtd, lm: o.lm, sq: o.sq, sql: o.sql }); }
   } else warn.push('Sheets “Secondary” / “Index” not found — sub-dealer KPI shows no data.');
+  /* ---- distributor sell-through (KPI 16): the raw Bizom “Secondary” invoice export — distributor = Selected_Warehouse_Erp_Code (a dealer code in Billing) ---- */
+  if (sc) {
+    const rh = findHeader(sc, ['salesdate', 'selectedwarehouseerpcode', 'quantity']);
+    if (rh >= 0) {
+      const m = colMap(sc[rh]), outl = new Map(); let n = 0;
+      for (let i = rh + 1; i < sc.length; i++) {
+        const r = sc[i]; if (!r) continue; const d = toDate(r[m.salesdate]); if (!d || d.getFullYear() !== Y || d.getMonth() !== M) continue;
+        if (m.category !== undefined && T(r[m.category]) && !/cycle/i.test(T(r[m.category]))) continue;
+        const di = idx.get(code(r[m.selectedwarehouseerpcode])); if (di === undefined) continue;
+        D.sq[di] = (D.sq[di] || 0) + numv(r[m.quantity]); n++;
+        const o = outl.get(di) || outl.set(di, new Set()).get(di); o.add(T(r[m.outletid]));
+      }
+      for (const [di, o] of outl) D.so[di] = o.size;
+      if (!n) warn.push(`Secondary: no ${MON[M]} invoice lines matched a distributor code in the Dealer master — sell-through (KPI 16) shows no data.`);
+    }
+  }
 
   /* ---- official SE / ASM dashboards (Dashboard SE, Dashboard ASM): targets, orders, balance, run rates ---- */
   const dash = { SE: {}, ASM: {} };

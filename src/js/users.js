@@ -86,12 +86,12 @@ async function loginFlow(env, onOpen) {
     } catch (err) { prog.innerHTML = '<b style="color:var(--crit)">Wrong password.</b>'; }
   };
 }
-function logout() { store.del(KEY_STORE); store.del(PACK_KEY); store.del(UPKEY); location.reload(); }
+async function logout() { store.del(KEY_STORE); store.del(PACK_KEY); store.del(UPKEY); if (window.FB) { try { await FB.auth.signOut(); } catch (e) {} } location.reload(); }
 /* role-based view: admins see everything; ASM / SE see their own slice and no admin tools */
 function applyRole() {
   const u = (SEED.meta && SEED.meta.user) || { role: 'admin', name: 'Admin' };
   document.body.classList.toggle('role-se', u.role === 'SE'); document.body.classList.toggle('role-asm', u.role === 'ASM'); document.body.classList.toggle('role-user', u.role !== 'admin');
-  $('#who').hidden = !window.ENC_USERS; $('#whoName').textContent = `${u.name} · ${u.role === 'admin' ? 'Admin' : u.role}`;
+  $('#who').hidden = !window.ENC_USERS && !window.FB; $('#whoName').textContent = `${u.name} · ${u.role === 'admin' ? 'Admin' : u.role}`;
   if (u.role === 'SE') { ST.rseSel = u.name; ST.planLvl.daily = 'SE'; ST.planLvl.weekly = 'SE'; }
   if (u.role === 'ASM') { ST.asmSel = u.name; }
 }

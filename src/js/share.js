@@ -109,7 +109,7 @@ function taskOf(it, pl) {
       const f = fieldOf(pl.level, pl.name, p.day);
       const need = o ? (o.balance > 0 ? Math.ceil(o.daysLeft > 0 ? o.reqRR : o.balance) : 0) : Math.ceil(p.need || 0), rr = o ? o.curRR : p.rr;
       const done = o ? `ordered ${fN(o.orderAch)} of ${fN(o.target)} (${fP(o.orderPct)})` : `${fN(p.mtd)} of ${fN(p.plan)} (${fP(p.ach)})`;
-      const noOrd = acts.filter(a => a.rs[0].k === 'bp').length, npd = p.r.k[5], prem = p.r.k[9];
+      const noOrd = acts.filter(a => a.rs[0].k === 'bp').length, npd = p.r.o[5], prem = p.r.o[9];
       const happened = [rr != null ? `run rate ${fN(rr)}/day${need ? (rr >= need ? ', on pace' : `, needs ${fN(need)}/day`) : ''}` : null,
         f && f.calls ? `orders at ${fN(f.orders)} of ${fN(f.calls)} visits` : null, f && f.cov ? `${fN(f.cov.a)} of ${fN(f.cov.t)} dealers visited` : null].filter(Boolean);
       const fix = [need && rr != null && rr < need ? `+${fN(need - rr)} orders/day` : null,
@@ -133,7 +133,7 @@ function taskOf(it, pl) {
       return { what: `Display audit R${k.round}: ${plural(k.left, 'outlet')} by ${due} (${k.perDay}/day)`, where: `Photo at every audit · ${stake}`, why };
     }
     case 'npd': {   // where to push NPD: dealers (today's route first) and which NPD models
-      const k5 = p.r.k[5], l = acts.filter(a => a.rs.some(r => r.k === 'npd')).sort((a, b) => route.has(b.i) - route.has(a.i));
+      const k5 = p.r.o[5], l = acts.filter(a => a.rs.some(r => r.k === 'npd')).sort((a, b) => route.has(b.i) - route.has(a.i));
       if (!l.length) {   // nobody billed yet this month: put NPD into the first orders
         const c = firstOrderDealers(), zm = c.length ? zoneModels(p.day).get(DB.D.z[c[0]]) : null, ms = zm && zm.npd.length ? zm.npd.slice(0, 2).join(' / ') : '';
         return { what: `Put NPD in ${plural(Math.min(2, c.length), 'first order')}${ms ? `: ${ms}` : ''}`, where: c.slice(0, 2).map(nm).join(', '),
@@ -153,7 +153,7 @@ function taskOf(it, pl) {
         return `${nm(a.i)}: add ${plural(g, 'model')}${m ? ` (${m})` : ''}`; };
       return { what: `Add more models at ${plural(Math.min(2, l.length), 'dealer')}`, where: l.slice(0, 2).map(one).join(' · '),
         why: `${o && o.mbdT ? `Models per dealer ${o.mbdA == null ? '–' : f1(o.mbdA)} vs ${f1(o.mbdT)} target · ` : ''}${plural(l.length, 'dealer')} below their model target` }; }
-    case 'prem': return { what: `Sell ${fN(ceilPos(.06 * p.r.totQ - p.r.premQ))} more premium units`, where: pickD('prem', 3), why: `Premium share ${fP1(p.r.k[9].a)} vs 6% target` };
+    case 'prem': return { what: `Sell ${fN(ceilPos(.06 * p.r.totQ - p.r.premQ))} more premium units`, where: pickD('prem', 3), why: `Premium share ${fP1(p.r.o[9].a)} vs 6% target` };
     case 'od': { const od = p.r.idx.filter(i => DB.D.s[i] === 'A' && DB.D.od[i] > 0).sort((a, b) => (route.has(b) - route.has(a)) || DB.D.od[b] - DB.D.od[a]);
       return { what: `Collect overdue ${inr(od.reduce((s, i) => s + DB.D.od[i], 0))}`, where: od.slice(0, 3).map(i => `${nm(i)} ${inr(DB.D.od[i])}`).join(' · '), why: `${plural(od.length, 'dealer')} overdue above ₹10k` }; }
     case 'pjp': {
@@ -208,7 +208,7 @@ function headline(pl) {
       ? [['Target', p.plan ? fN(p.plan) : '–'], ['Achieved', fN(p.mtd)], ['Gap', p.gap == null ? '–' : fN(p.gap)], ['Today’s target', p.need ? fN(Math.ceil(p.need)) : '–']]
       : [['Week target', pl.wk ? fN(pl.wk.tTo) : '–'], ['Week achieved', pl.wk ? fN(pl.wk.units) : '–'], ['Week %', pl.wk ? fP(pl.wk.pct) : '–'], ['Prev. week', pl.prev ? fP(pl.prev.pct) : '–']],
     chips: [pl.pjp ? `DJP ${fN(pl.pjp.a)}/${fN(pl.pjp.p)}` : null,
-      r.k[5].has ? `NPD ${fN(r.k[5].a)}/${fN(r.k[5].t)}` : null].filter(Boolean) };
+      r.o[5].has ? `NPD ${fN(r.o[5].a)}/${fN(r.o[5].t)}` : null].filter(Boolean) };
 }
 /* what the SE / ASM must do. Daily: 1 business insight (till date → how to improve), 2 hours in market, 3 where to add models (MBD),
    4 where to push NPD, then the remaining KPI actions. Visits, pending orders and coverage are in the tiles, not steps.

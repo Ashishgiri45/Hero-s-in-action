@@ -43,7 +43,7 @@ const C = {
   need: { k: 'need', h: 'Need/day', cls: 'r num', html: r => r.p.need == null ? '–' : fN(r.p.need), val: r => r.p.need },
   status: { k: 'status', h: 'Status', html: r => stPill(r.p.status), val: r => ['crit', 'behind', 'watch', 'ok', 'nd'].indexOf(r.p.status) },
   trend: { k: 'trend', h: 'Trend', html: r => trPill(r.p.trend), val: r => r.p.trend.d },
-  bp: { k: 'bp', h: 'Billing pts', cls: 'r num', html: r => r.p.r.k[1].has ? `${fN(r.p.r.k[1].a)}/${fN(r.p.r.k[1].t)}` : '–', val: r => r.p.r.k[1].p },
+  bp: { k: 'bp', h: 'Billing pts', cls: 'r num', html: r => r.p.r.k[6].has ? `${fN(r.p.r.k[6].a)}/${fN(r.p.r.k[6].t)}` : '–', val: r => r.p.r.k[6].p },
   score: { k: 'score', h: '16-pt score', cls: 'c', html: r => { const sb = scoreBand(r.p.r.comp); return `<span class="heat" style="background:${HEAT[sb.k]};color:var(--ink)">${r.p.r.comp == null ? '–' : Math.round(r.p.r.comp * 100)}</span>`; }, val: r => r.p.r.comp },
   pjp: lvl => ({ k: 'pjp', h: 'DJP visits', cls: 'r num', html: r => { const j = pjpOf(lvl === 'ASM' ? 'ASM' : 'SE', r.name); return j ? `${fN(j.a)}/${fN(j.p)}` : '<span class="na">–</span>'; }, val: r => { const j = pjpOf(lvl === 'ASM' ? 'ASM' : 'SE', r.name); return j ? j.pct : null; } }),
   team: { k: 'team', h: 'SEs', cls: 'r num', html: r => r.team.length, val: r => r.team.length },
@@ -180,7 +180,7 @@ function profileHTML(lvl, name) {
       ${bigNum('Vs pace', p.pace == null ? '–' : fP(p.pace), `Expected by now ${fN(p.expected)} · run rate ${fN(p.rr)}/day`)}
       ${bigNum('Gap', p.gap == null ? '–' : fN(p.gap), p.need ? `${fN(p.need)}/day over ${p.wdLeft} working days` : 'No daily need')}
       ${isA ? bigNum('Team', `${tc.n}<small>SEs</small>`, `<span style="color:var(--good)">${tc.ok} on track</span> · ${tc.watch} watch · <span style="color:var(--crit)">${tc.under} need improvement</span>`)
-        : bigNum('Billing points · DJP', `${fN(p.r.k[1].a)}<small>/ ${fN(p.r.k[1].t)}</small>`, pj ? `DJP visits ${fN(pj.a)}/${fN(pj.p)} (${fP(pj.pct)}) · W1–W2` : 'No journey-plan record this month')}
+        : bigNum('Billing points · DJP', `${fN(p.r.k[6].a)}<small>/ ${fN(p.r.k[6].t)}</small>`, pj ? `DJP visits ${fN(pj.a)}/${fN(pj.p)} (${fP(pj.pct)}) · W1–W2` : 'No journey-plan record this month')}
     </div>
     ${fieldCardHTML(lvl, name)}
     <div class="grid2">
@@ -399,7 +399,7 @@ function dataChecks() {
   const noPlan = rseRows(scopeF()).filter(x => !(x.p.plan > 0));
   out.push({ h: 'SEs with dealers but no volume plan', n: noPlan.length, impact: 'No target: status “No target”, plan item asks to validate the plan.', ex: noPlan.slice(0, 6).map(x => x.name).join(', ') });
   const noPjp = DB.sameMonth ? rseRows(scopeF()).filter(x => !pjpOf('SE', x.name)) : [];
-  out.push({ h: 'SEs without a journey-plan (DJP/PJP) record', n: noPjp.length, impact: 'DJP visits shown as “–”; KPI 2 not scored for them.', ex: noPjp.slice(0, 6).map(x => x.name).join(', ') });
+  out.push({ h: 'SEs without a journey-plan (DJP/PJP) record', n: noPjp.length, impact: 'DJP visits shown as “–”; KPIs 13–14 not scored for them.', ex: noPjp.slice(0, 6).map(x => x.name).join(', ') });
   out.push({ h: 'Dealers with net negative billing MTD (returns)', n: neg, impact: 'Reduce achievement; not treated as billing points.', ex: negL.slice(0, 4).map(dName).join('; ') });
   out.push({ h: 'Dealers in the uploaded dump but not in the master', n: Math.max(0, DB.n - seed), impact: 'Added with the SE from the dump’s SE code; no plan or MIS history.', sev: 'info' });
   out.push({ h: 'Billing month differs from the reference pack month', n: DB.sameMonth ? 0 : 1, impact: 'Plan, journey-plan and sub-dealer data are hidden: targets show “No target”.', ex: DB.sameMonth ? '' : `Billing ${DB.month}, pack ${SEED.meta.month}` });

@@ -243,7 +243,7 @@
     </div>
     <div class="grid2">
       <div class="card"><div class="card-h"><h3>Publish to the website</h3><span class="muted small">Admin</span></div><div class="card-b">
-        <p class="small" style="margin:0 0 10px"><b>Publish update</b> encrypts the data loaded now with the admin password and every ASM / SE login, and downloads <code>data.js</code>. Put it in the <code>js</code> folder of <b>DJP_Dashboard_Netlify_Upload</b> (replace the old one) and drag the folder to Netlify. Everyone sees the new data on their next visit.</p>
+        <p class="small" id="dmPubTxt" style="margin:0 0 10px"><b>Publish update</b> encrypts the data loaded now with the admin password and every ASM / SE login, and downloads <code>data.js</code>. Put it in the <code>js</code> folder of <b>DJP_Dashboard_Netlify_Upload</b> (replace the old one) and drag the folder to Netlify. Everyone sees the new data on their next visit.</p>
         <div class="toolbar" id="dmPubBar"><button class="btn sm primary" id="btnPublish" type="button">Publish update (data.js)</button><button class="btn sm" id="btnForget" type="button">Remove data from this browser</button></div>
       </div></div>
       <div class="card"><div class="card-h"><h3>Daily update routine</h3></div><div class="card-b">
@@ -251,7 +251,7 @@
           <li>In the month's workbook paste <b>Billing</b>, <b>Dashboard SE</b>, <b>Dashboard ASM</b>, <b>Date ASM Wise Billing</b>, the <b>DJP</b> month block and <b>Secondary</b>; set the date in <b>SE Dashboard B3</b>; save and close Excel.</li>
           <li><b>Upload data</b> here (left).</li>
           <li>Check <b>Home</b> and send the plans from <b>Plans &amp; Execution</b>.</li>
-          <li>When the team should see it: <b>Publish update</b> → replace data.js → deploy.</li>
+          <li id="dmPubStep">When the team should see it: <b>Publish update</b> → replace data.js → deploy.</li>
         </ol>
       </div></div>
     </div>
@@ -265,7 +265,8 @@
       <h2>16-Point KPI Tracker</h2>
       <div class="hm-tag lock-tag">Heroes in Action</div>
       <p class="muted">SE &amp; ASM performance and action plans. Sign in with your work email to see your latest data (<span id="lockAsOf">–</span>).</p>
-      <form id="lockForm" class="lock-col" autocomplete="on"><input id="lockId" type="text" inputmode="email" autocomplete="username" placeholder="Work email (admin: admin)" aria-label="Login id" required><input id="lockPw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required><button class="btn primary" type="submit">Sign in</button></form>
+      <form id="lockForm" class="lock-col" autocomplete="on"><input id="lockId" type="text" inputmode="email" autocomplete="username" placeholder="Work email" aria-label="Work email" required><input id="lockPw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required><input id="lockPw2" type="password" autocomplete="new-password" placeholder="Type the password again" aria-label="Password again" hidden><button class="btn primary" id="lockGo" type="submit">Sign in</button></form>
+      <div class="small" id="lockLinks"></div>
       <label class="small"><input type="checkbox" id="lockRemember" checked> Remember on this device</label>
       <div class="progress" id="lockProg"></div>
     </div></div>
@@ -313,6 +314,14 @@
       <div class="card">
         <div class="card-h"><h2>Biggest score gaps</h2><span class="muted small">points lost vs full score</span></div>
         <div class="card-b"><div class="gaps" id="gapList"></div></div>
+      </div>
+    </div>
+    <div class="card kq" id="kq">
+      <div class="kq-row">
+        <label for="kqIn" class="kq-l">See the 16 KPIs of</label>
+        <div class="kq-box"><input id="kqIn" type="search" placeholder="Type an RSM, ASM or SE name…" autocomplete="off" spellcheck="false" aria-controls="kqPop" aria-expanded="false"><div class="kq-pop" id="kqPop" role="listbox" hidden></div></div>
+        <span class="kq-now" id="kqNow"></span>
+        <button class="btn sm" id="kqClear" type="button" hidden>Show all again</button>
       </div>
     </div>
     <div id="tileGroups" class="view" style="gap:12px"></div>
@@ -454,13 +463,17 @@
 
   <!-- 16-KPI BOARD (reference leaderboard) -->
   <section class="view" id="v-leaderboard" role="tabpanel" hidden>
+    <div class="card" id="lbPerson" hidden></div>
     <div class="card">
       <div class="card-h"><h2 id="lbTitle">SE leaderboard</h2>
         <div class="toolbar">
+          <label class="lb-mon"><span class="small muted">Month</span><select id="lbMon" aria-label="Month"></select></label>
           <div class="seg" role="group" aria-label="Level"><button type="button" data-lb="SE" aria-pressed="true">SEs</button><button type="button" data-lb="ASM" aria-pressed="false">ASMs</button></div>
           <button class="btn sm" data-xp="kpi16">⬇ Excel · current view</button><button class="btn sm" data-xp="kpi16" data-xpall="1">⬇ All records</button>
         </div></div>
-      <div class="card-b" style="padding-bottom:6px"><div class="muted small" id="lbNote"></div></div>
+      <div class="card-b" style="padding-bottom:6px">
+        <div class="kq-row" style="margin-bottom:8px"><label for="lbQ" class="kq-l">Search</label><div class="kq-box"><input id="lbQ" type="search" placeholder="Type a name to find their 16-KPI scorecard…" autocomplete="off" spellcheck="false"></div><span class="small muted" id="lbQn"></span></div>
+        <div class="muted small" id="lbNote"></div></div>
       <div class="tbl-wrap" style="max-height:70vh"><table id="lbTable"></table></div>
     </div>
   </section>
@@ -583,8 +596,8 @@
 <div class="overlay" id="pubOv" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pubTitle">
     <h3 id="pubTitle">Publish update</h3>
-    <p class="small muted" style="margin:0">Builds the logins for the data loaded now (<span id="pubAsOf"></span>): <b>admin</b> with the admin password below, and every ASM / SE with an email in the Contacts sheet (password: first name + @hero). Downloads <b>data.js</b> and a login list.</p>
-    <form id="pubForm" class="lock-row" autocomplete="off"><input id="pubPw" type="password" placeholder="Admin password" aria-label="Admin password" required minlength="8"><button class="btn primary" type="submit">Encrypt &amp; download</button></form>
+    <p class="small muted" id="pubTxt" style="margin:0">Builds the logins for the data loaded now (<span id="pubAsOf"></span>): <b>admin</b> with the admin password below, and every ASM / SE with an email in the Contacts sheet (password: first name + @hero). Downloads <b>data.js</b> and a login list.</p>
+    <form id="pubForm" class="lock-row" autocomplete="off"><input id="pubPw" type="password" placeholder="Admin password" aria-label="Admin password" required minlength="8"><button class="btn primary" id="pubGo" type="submit">Encrypt &amp; download</button></form>
     <div class="progress" id="pubProg"></div>
     <div style="display:flex;justify-content:flex-end"><button class="btn" id="pubClose" type="button">Close</button></div>
   </div>
@@ -609,6 +622,7 @@
 <script src="js/shell.js"></script>
 <script src="js/crypt.js"></script>
 <script src="js/users.js"></script>
+<script src="js/fb.js"></script>
 <!--DATA-->
 <script src="js/main.js"></script>
 </body></html>

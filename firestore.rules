@@ -1,0 +1,35 @@
+rules_version = '2';
+// 16-Point KPI Tracker - Heroes in Action
+// Who can read what:
+//   admin  = an email in ADMINS below, or an access/{email} document with role "admin" (added in the console)
+//   ASM/SE = an email with an access/{email} document (written by the admin's "Publish to team")
+// Everyone must have a VERIFIED email (they clicked the link Firebase sent them).
+// A person reads only their own access record and their own data pack; admins read and write everything.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function ADMINS() { return ['e-com.ai@herocycles.com']; }   // first admin(s) - edit, then deploy rules
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function me() { return request.auth.token.email.lower(); }
+    function accessDoc() { return /databases/$(database)/documents/access/$(me()); }
+    function isAdmin() {
+      return signedIn() && (me() in ADMINS() || (exists(accessDoc()) && get(accessDoc()).data.role == 'admin'));
+    }
+    function isMember() { return signedIn() && exists(accessDoc()); }
+
+    match /access/{email} {
+      allow read: if (signedIn() && email == me()) || isAdmin();
+      allow write: if isAdmin();
+    }
+    match /packs/{id} {
+      allow read: if (isMember() && id == me()) || isAdmin();
+      allow write: if isAdmin();
+      match /chunks/{c} {
+        allow read: if (isMember() && id == me()) || isAdmin();
+        allow write: if isAdmin();
+      }
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

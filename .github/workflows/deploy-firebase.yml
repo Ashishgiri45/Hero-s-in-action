@@ -1,0 +1,29 @@
+# 16-Point KPI Tracker - Heroes in Action
+# Every push to main builds dist/ (no data inside) and deploys it to Firebase Hosting.
+# Needs one repository secret: FIREBASE_SERVICE_ACCOUNT (see SETUP-FIREBASE.md, step 7).
+# The Firebase project id comes from .firebaserc.
+name: Deploy to Firebase Hosting
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build site (no data)
+        run: python build.py --firebase
+      - name: Check no data files are in dist
+        run: |
+          if find dist -name '*.json' -o -name 'data.js' -o -name '*.xls*' | grep -q .; then echo "Data file found in dist - stopping"; exit 1; fi
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live

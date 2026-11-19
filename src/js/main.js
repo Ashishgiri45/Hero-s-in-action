@@ -101,7 +101,7 @@ function startApp() {
   $('#btnLogout').onclick = logout;
   ST.week = defaultWeek();
   $('#packSrc').textContent = `Data to ${SEED.meta.asOf} · ${PACK_SRC}`;
-  wireApp(); wireShare(); wirePublish(); wireMonthly(); wireMonthwise(); wireShell();
+  wireApp(); wireShare(); wirePublish(); if (window.FB) fbWirePublish(); wireMonthly(); wireMonthwise(); wireShell();
   $('#dBulk').onclick = () => openBulk('daily'); $('#wBulk').onclick = () => openBulk('weekly');
   $('#bkCards').onclick = () => bulkZip('cards'); $('#bkMails').onclick = () => bulkZip('mails');
   renderTab(ST.tab);
@@ -131,7 +131,7 @@ function wireOnboarding() {
   window.addEventListener('drop', e => { if (!BOOTED && !e.target.closest('#obDrop')) { e.preventDefault(); obFile(e.dataTransfer.files[0]); } });
 }
 
-(function main() {
+(async function main() {
   $('#btnTheme').onclick = () => {
     const root = document.documentElement;
     const cur = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -139,6 +139,18 @@ function wireOnboarding() {
   };
   const fail = e => { console.error(e); $('main').insertAdjacentHTML('afterbegin', `<div class="banner" style="border-color:var(--crit)">The dashboard could not start: ${esc(e.message)}. <button class="btn sm" id="btnForget2" type="button">Clear saved data</button></div>`); $('#btnForget2').onclick = forgetData; };
   const found = findPack();
+  // Firebase Hosting: per-person sign-in, data from Firestore. An admin's newer upload in this browser wins.
+  let fb = null;
+  try { fb = await fbInit(); } catch (e) { return fail(e); }
+  if (fb) {
+    return fbSignIn((pack, who) => {
+      const newer = p => found && found.src !== 'embedded in this file' && (!p || (found.pack.meta.asOf || '') > (p.meta.asOf || '') || (found.pack.meta.asOf === p.meta.asOf && (found.pack.meta.built || '') > (p.meta.built || '')));
+      if (who.admin && newer(pack)) { SEED = found.pack; SEED.meta.user = { role: 'admin', name: who.name }; PACK_SRC = found.src + ' · not published yet'; }
+      else if (pack) { SEED = pack; if (who.admin) SEED.meta.user = { role: 'admin', name: who.name }; PACK_SRC = `published data · ${pack.meta.fromWorkbook || ''}`; }
+      else { document.body.classList.add('nodata'); $('#onboard').hidden = false; wireOnboarding(); toast('Signed in as admin. No data published yet - upload the master workbook, then Publish to team.', 8000); return; }
+      try { startApp(); } catch (e) { fail(e); }
+    }, fail);
+  }
   // published site with logins: each person opens their own slice; an admin's newer upload in this browser wins
   if (window.ENC_USERS) {
     return loginFlow(window.ENC_USERS, pack => {
