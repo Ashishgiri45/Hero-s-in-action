@@ -149,6 +149,8 @@ function fbSignIn(onOpen, fail) {
     }
     opening = true; prog.innerHTML = '<span class="spin"></span>Opening your data…';
     try {
+      // a token issued before the email was verified still says "not verified" to the database rules - get a fresh one
+      if (!(await user.getIdTokenResult()).claims.email_verified) await user.getIdToken(true);
       const email = user.email.toLowerCase();
       let me = null;
       try { const a = await FB.db.collection('access').doc(email).get(); me = a.exists ? a.data() : null; } catch (x) { me = null; }
